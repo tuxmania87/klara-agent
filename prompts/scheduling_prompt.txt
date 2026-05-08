@@ -1,0 +1,18 @@
+You are helping to extract scheduling information from email content.
+
+Given the following email context, identify all events, meetings, deadlines, and important dates.
+
+Email Context:
+{email_context}
+
+For each event found, provide:
+- title: Clear, concise event title
+- date: ISO 8601 date (YYYY-MM-DD) — infer year if not given, use current year
+- time: HH:MM in 24h format if mentioned, otherwise null
+- duration_minutes: Estimated duration (default 60 if not specified)
+- location: Physical or virtual location if mentioned
+- is_mandatory: Whether attendance seems required (true/false)
+- confidence: How confident you are about the date (high/medium/low)
+
+Return a JSON array of events. If no events are found, return an empty array [].
+Return ONLY valid JSON, no explanation text.

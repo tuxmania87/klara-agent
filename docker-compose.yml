@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agentdb
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agent_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d agentdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent_net
+
+  # ── Alembic migrations (run once on startup) ────────────────────────────────
+  migrate:
+    build: .
+    command: alembic upgrade head
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://agent:${POSTGRES_PASSWORD:-agent_secret}@db:5432/agentdb
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./secrets:/secrets:ro
+    networks:
+      - agent_net
+    restart: "no"
+
+  # ── Main application ─────────────────────────────────────────────────────────
+  agent:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://agent:${POSTGRES_PASSWORD:-agent_secret}@db:5432/agentdb
+    ports:
+      - "${AGENT_PORT:-8000}:8000"
+    volumes:
+      - ./secrets:/secrets:ro
+      - ./prompts:/app/prompts:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - agent_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  postgres_data:
+
+networks:
+  agent_net:
+    driver: bridge

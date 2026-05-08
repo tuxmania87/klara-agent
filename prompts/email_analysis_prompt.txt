@@ -1,0 +1,19 @@
+Analyze the following email and provide a concise, structured summary.
+
+Email Details:
+- Subject: {subject}
+- From: {sender}
+- Body:
+{body}
+
+---
+
+Please provide:
+1. **One-line summary** (max 100 chars) — the core message in plain language
+2. **Key points** — 2–4 bullet points covering the most important information
+3. **Action required?** — Yes/No, and if yes, what specifically
+4. **Urgency** — Low / Medium / High with brief justification
+5. **Dates/deadlines mentioned** — list any specific dates, times, or deadlines
+
+Keep the summary professional and factual. Do not include opinions.
+Format your response in clean Markdown.
