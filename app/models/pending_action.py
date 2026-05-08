@@ -28,9 +28,9 @@ class PendingAction(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    action_type: Mapped[ActionType] = mapped_column(Enum(ActionType))
+    action_type: Mapped[ActionType] = mapped_column(String(64))
     status: Mapped[ActionStatus] = mapped_column(
-        Enum(ActionStatus), default=ActionStatus.PENDING, index=True
+        String(32), default=ActionStatus.PENDING, index=True
     )
     payload: Mapped[str] = mapped_column(Text)     # JSON blob
     description: Mapped[str] = mapped_column(Text)  # Human-readable summary

@@ -17,35 +17,33 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - agent_net
+      - agent_net          # db only needs the internal network
 
-  # ── Alembic migrations (run once on startup) ────────────────────────────────
+  # ── Alembic migrations ──────────────────────────────────────────────────────
   migrate:
     build: .
     command: alembic upgrade head
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://agent:${POSTGRES_PASSWORD:-agent_secret}@db:5432/agentdb
+      DATABASE_URL: postgresql+asyncpg://agent:${POSTGRES_PASSWORD:-agent_secret}@klaraagent-db-1:5432/agentdb
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./secrets:/secrets:ro
     networks:
-      - agent_net
+      - agent_net          # only needs to reach db
     restart: "no"
 
-  # ── Main application ─────────────────────────────────────────────────────────
+  # ── Main application ────────────────────────────────────────────────────────
   agent:
-    build: .
+    build: .                # ← fixed: was indented one extra space
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://agent:${POSTGRES_PASSWORD:-agent_secret}@db:5432/agentdb
-    ports:
-      - "${AGENT_PORT:-8000}:8000"
+      DATABASE_URL: postgresql+asyncpg://agent:${POSTGRES_PASSWORD:-agent_secret}@klaraagent-db-1:5432/agentdb
     volumes:
-      - ./secrets:/secrets:ro
+      - ./secrets:/secrets:rw
       - ./prompts:/app/prompts:ro
     depends_on:
       db:
@@ -53,7 +51,8 @@ services:
       migrate:
         condition: service_completed_successfully
     networks:
-      - agent_net
+      - agent_net           # ← talks to db
+      - dbnet               # ← talks to NPM
     logging:
       driver: "json-file"
       options:
@@ -66,3 +65,6 @@ volumes:
 networks:
   agent_net:
     driver: bridge
+  dbnet:
+    name: dbnet
+    external: true

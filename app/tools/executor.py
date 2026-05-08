@@ -25,8 +25,18 @@ class ToolExecutor:
         self.email_service = EmailService(db)
         self.action_service = ActionService(db)
 
+    @staticmethod
+    def _sanitize_args(args: Any) -> Any:
+        """Recursively convert protobuf/Gemini types to native Python types."""
+        if hasattr(args, "items"):          # dict-like (MapComposite)
+            return {k: ToolExecutor._sanitize_args(v) for k, v in args.items()}
+        if hasattr(args, "__iter__") and not isinstance(args, (str, bytes)):
+            return [ToolExecutor._sanitize_args(v) for v in args]
+        return args
+
     async def execute(self, tool_name: str, args: dict[str, Any]) -> Any:
         """Execute a tool call and return the result."""
+        args = self._sanitize_args(args)
         logger.info("tool.execute", extra={"tool": tool_name, "args": args})
 
         dispatch = {
@@ -37,6 +47,7 @@ class ToolExecutor:
             "list_google_calendar_events": self._list_calendar_events,
             "summarize_email": self._summarize_email,
             "classify_email_actionability": self._classify_emails,
+            "get_agent_status": self._get_agent_status,
         }
 
         handler = dispatch.get(tool_name)
@@ -46,10 +57,15 @@ class ToolExecutor:
         try:
             return await handler(**args)
         except Exception as e:
-            logger.error("tool.execute.error", extra={"tool": tool_name, "error": str(e)})
+            logger.error(
+                "tool.execute.error",
+                extra={"tool": tool_name, "error": str(e)},
+                exc_info=True,   # ← full traceback in logs
+            )
             return {"error": str(e)}
 
     async def _read_gmail(self, max_results: int = 10) -> dict:
+        max_results = int(max_results)
         messages = await self.email_service.ingest_gmail(max_results=max_results)
         return {
             "source": "gmail",
@@ -67,6 +83,7 @@ class ToolExecutor:
         }
 
     async def _read_mailcow(self, limit: int = 20) -> dict:
+        limit = int(limit)
         messages = await self.email_service.ingest_mailcow(limit=limit)
         return {
             "source": "mailcow",
@@ -153,6 +170,7 @@ class ToolExecutor:
         }
 
     async def _list_calendar_events(self, max_results: int = 10) -> dict:
+        max_results = int(max_results)
         from app.integrations.google_calendar import list_events
         import asyncio
 
@@ -178,6 +196,50 @@ class ToolExecutor:
             return {"error": f"Email {email_id} not found."}
         summary = await self.email_service.summarize_email(email)
         return {"email_id": email_id, "summary": summary}
+
+
+    async def _get_agent_status(self) -> dict:
+        """Return current agent configuration and stats."""
+        from app.config import settings
+        from sqlalchemy import select, func
+        from app.models.email import Email
+        from app.models.pending_action import PendingAction
+
+        # Count emails in DB
+        email_count_result = await self.db.execute(select(func.count()).select_from(Email))
+        email_count = email_count_result.scalar() or 0
+
+        pending_count_result = await self.db.execute(
+            select(func.count()).select_from(PendingAction).where(
+                PendingAction.status == "pending"
+            )
+        )
+        pending_count = pending_count_result.scalar() or 0
+
+        interval_min = settings.EMAIL_POLL_INTERVAL_SECONDS // 60
+
+        return {
+            "polling": {
+                "enabled": True,
+                "interval_minutes": interval_min,
+                "description": f"Automatically polling every {interval_min} minutes in the background.",
+            },
+            "integrations": {
+                "gmail":    "active" if settings.GMAIL_TOKEN_JSON else "not configured",
+                "mailcow":  "active" if settings.MAILCOW_IMAP_HOST else "not configured",
+                "calendar": "active" if settings.GCAL_TOKEN_JSON else "not configured",
+                "telegram": "active",
+            },
+            "stats": {
+                "emails_in_database": email_count,
+                "pending_actions":    pending_count,
+            },
+            "workers": [
+                f"email_poller — runs every {interval_min} min",
+                f"email_analyzer — runs every {settings.ANALYSIS_POLL_INTERVAL_SECONDS} sec",
+                f"notifier — runs every {settings.NOTIFICATION_POLL_INTERVAL_SECONDS} sec",
+            ],
+        }
 
     async def _classify_emails(self, email_ids: list[int]) -> dict:
         results = []

@@ -23,8 +23,8 @@ COPY alembic.ini .
 RUN mkdir -p /secrets
 
 # Non-root user for security
-RUN useradd -m -u 1000 agent && chown -R agent:agent /app /secrets
-USER agent
+#RUN useradd -m -u 1000 agent && chown -R agent:agent /app /secrets
+#USER agent
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \

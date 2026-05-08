@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     MAILCOW_API_URL: str = ""          # e.g. https://mail.example.com/api/v1
     MAILCOW_API_KEY: str = ""
     MAILCOW_EMAIL_ADDRESS: str = ""    # mailbox to read/send from
+    MAILCOW_IMAP_HOST: str = ""        # e.g. mail.example.com
+    MAILCOW_IMAP_PORT: int = 993
+    MAILCOW_IMAP_PASSWORD: str = ""    # mailbox password (not API key)
+    MAILCOW_IMAP_SSL: bool = True
+
+    # ── Mailcow SMTP (for sending emails) ────────────────────────────────────
+    MAILCOW_SMTP_HOST: str = ""        # usually same as IMAP host
+    MAILCOW_SMTP_PORT: int = 587       # 587 = STARTTLS, 465 = implicit TLS
+    MAILCOW_SMTP_PASSWORD: str = ""    # usually same as IMAP password
+    MAILCOW_SMTP_TLS: bool = False     # False = STARTTLS (port 587), True = implicit TLS (port 465)
 
     # ── Worker settings ──────────────────────────────────────────────────────
     EMAIL_POLL_INTERVAL_SECONDS: int = 900    # 15 min

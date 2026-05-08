@@ -1,128 +1,309 @@
 """
-Mailcow API integration — list, read, and send emails via Mailcow REST API.
+Mailcow integration:
+  - Reading emails via IMAP (aioimaplib)
+  - Sending emails via SMTP (aiosmtplib)
+
+Verbose debug logging shows exactly which host/user/port is used for each connection.
 """
+import asyncio
+import email
 import logging
+import ssl
+from email.header import decode_header
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import parsedate_to_datetime
 from typing import Any
 
-import httpx
+import aioimaplib
+import aiosmtplib
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT = httpx.Timeout(30.0)
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _decode_header_value(raw: str) -> str:
+    parts = decode_header(raw or "")
+    decoded = []
+    for part, charset in parts:
+        if isinstance(part, bytes):
+            decoded.append(part.decode(charset or "utf-8", errors="replace"))
+        else:
+            decoded.append(str(part))
+    return " ".join(decoded)
 
 
-def _headers() -> dict[str, str]:
-    return {
-        "X-API-Key": settings.MAILCOW_API_KEY,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
+def _extract_body(msg: email.message.Message) -> tuple[str, str]:
+    text, html = "", ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            ct = part.get_content_type()
+            if "attachment" in str(part.get("Content-Disposition", "")):
+                continue
+            payload = part.get_payload(decode=True)
+            if payload is None:
+                continue
+            charset = part.get_content_charset() or "utf-8"
+            decoded = payload.decode(charset, errors="replace")
+            if ct == "text/plain" and not text:
+                text = decoded
+            elif ct == "text/html" and not html:
+                html = decoded
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload:
+            charset = msg.get_content_charset() or "utf-8"
+            text = payload.decode(charset, errors="replace")
+    return text, html
 
 
-def _base() -> str:
-    return settings.MAILCOW_API_URL.rstrip("/")
+# ── IMAP — reading ────────────────────────────────────────────────────────────
 
+class MailcowIMAPClient:
+    """Async IMAP client for reading emails from a Mailcow mailbox."""
 
-class MailcowClient:
-    """Reusable async Mailcow API client."""
+    def __init__(self):
+        self.host     = settings.MAILCOW_IMAP_HOST
+        self.port     = settings.MAILCOW_IMAP_PORT
+        self.username = settings.MAILCOW_EMAIL_ADDRESS
+        self.password = settings.MAILCOW_IMAP_PASSWORD
+        self.use_ssl  = settings.MAILCOW_IMAP_SSL
 
-    async def list_messages(
+    async def _connect(self) -> aioimaplib.IMAP4 | aioimaplib.IMAP4_SSL:
+        logger.info(
+            "mailcow.imap.connecting",
+            extra={
+                "host":     self.host,
+                "port":     self.port,
+                "username": self.username,
+                "ssl":      self.use_ssl,
+            },
+        )
+        if self.use_ssl:
+            client = aioimaplib.IMAP4_SSL(host=self.host, port=self.port)
+        else:
+            client = aioimaplib.IMAP4(host=self.host, port=self.port)
+
+        await client.wait_hello_from_server()
+
+        logger.info(
+            "mailcow.imap.login_attempt",
+            extra={"host": self.host, "username": self.username},
+        )
+        resp = await client.login(self.username, self.password)
+        if resp.result != "OK":
+            logger.error(
+                "mailcow.imap.login_failed",
+                extra={"host": self.host, "username": self.username, "response": str(resp.lines)},
+            )
+            raise ConnectionError(f"IMAP login failed for {self.username}@{self.host}:{self.port} — {resp.lines}")
+
+        logger.info(
+            "mailcow.imap.login_ok",
+            extra={"host": self.host, "username": self.username},
+        )
+        return client
+
+    async def list_unread_messages(
         self,
-        mailbox: str | None = None,
         folder: str = "INBOX",
         limit: int = 20,
-        unread_only: bool = True,
     ) -> list[dict[str, Any]]:
-        """List messages from a Mailcow mailbox."""
-        mailbox = mailbox or settings.MAILCOW_EMAIL_ADDRESS
-        params: dict[str, Any] = {
-            "mailbox": mailbox,
-            "folder": folder,
-            "limit": limit,
-        }
-        if unread_only:
-            params["unseen"] = 1
+        """Fetch unread messages. Returns normalized dicts."""
+        client = await self._connect()
 
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp = await client.get(
-                f"{_base()}/get/mailbox/messages",
-                headers=_headers(),
-                params=params,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            logger.info(
-                "mailcow.list_messages",
-                extra={"mailbox": mailbox, "count": len(data)},
-            )
-            return data
+        resp = await client.select(folder)
+        if resp.result != "OK":
+            await client.logout()
+            raise ConnectionError(f"IMAP SELECT '{folder}' failed: {resp.lines}")
 
-    async def get_message(
-        self, message_uid: str, mailbox: str | None = None
-    ) -> dict[str, Any]:
-        """Fetch a single message body by UID."""
-        mailbox = mailbox or settings.MAILCOW_EMAIL_ADDRESS
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp = await client.get(
-                f"{_base()}/get/mailbox/message/{message_uid}",
-                headers=_headers(),
-                params={"mailbox": mailbox},
-            )
-            resp.raise_for_status()
-            return resp.json()
+        resp = await client.search("UNSEEN")
+        if resp.result != "OK":
+            await client.logout()
+            return []
 
-    async def send_email(
-        self,
-        to: list[str],
-        subject: str,
-        body_text: str,
-        body_html: str | None = None,
-        cc: list[str] | None = None,
-        reply_to: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Send an email via Mailcow.
-        NOTE: Never called directly — always goes through pending_action approval.
-        """
-        payload: dict[str, Any] = {
-            "from": settings.MAILCOW_EMAIL_ADDRESS,
-            "to": to,
-            "subject": subject,
-            "text": body_text,
-        }
-        if body_html:
-            payload["html"] = body_html
-        if cc:
-            payload["cc"] = cc
-        if reply_to:
-            payload["replyTo"] = reply_to
+        # aioimaplib SEARCH returns lines[0] as bytes OR as b'' for empty inbox
+        # guard against integers or other unexpected types
+        raw_ids = ""
+        if resp.lines:
+            first = resp.lines[0]
+            if isinstance(first, bytes):
+                raw_ids = first.decode(errors="replace")
+            elif isinstance(first, str):
+                raw_ids = first
+        uid_list = [u for u in raw_ids.strip().split() if u.strip()]
 
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp = await client.post(
-                f"{_base()}/send/email",
-                headers=_headers(),
-                json=payload,
-            )
-            resp.raise_for_status()
-            result = resp.json()
-            logger.info("mailcow.send_email", extra={"to": to, "subject": subject})
-            return result
+        if not uid_list:
+            await client.logout()
+            logger.info("mailcow.imap.list_unread", extra={"count": 0, "folder": folder})
+            return []
 
-    async def mark_as_read(self, message_uid: str, mailbox: str | None = None) -> None:
-        mailbox = mailbox or settings.MAILCOW_EMAIL_ADDRESS
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp = await client.post(
-                f"{_base()}/edit/mailbox/flags",
-                headers=_headers(),
-                json={
-                    "mailbox": mailbox,
-                    "uid": message_uid,
-                    "flags": {"add": ["\\Seen"]},
-                },
+        uid_list = uid_list[-limit:]
+        messages = []
+
+        for uid in uid_list:
+            try:
+                resp = await client.fetch(uid, "(RFC822)")
+                if resp.result != "OK":
+                    continue
+
+                raw_email = None
+                for line in resp.lines:
+                    if isinstance(line, bytes) and len(line) > 100:
+                        raw_email = line
+                        break
+                if not raw_email:
+                    continue
+
+                msg = email.message_from_bytes(raw_email)
+                text, html = _extract_body(msg)
+                subject    = _decode_header_value(msg.get("Subject", ""))
+                sender     = _decode_header_value(msg.get("From", ""))
+                recipients = _decode_header_value(msg.get("To", ""))
+                date_str   = msg.get("Date", "")
+
+                received_at = None
+                if date_str:
+                    try:
+                        received_at = parsedate_to_datetime(date_str).isoformat()
+                    except Exception:
+                        pass
+
+                uid_str = uid.decode() if isinstance(uid, bytes) else str(uid)
+                messages.append({
+                    "id":           uid_str,
+                    "subject":      subject,
+                    "sender":       sender,
+                    "recipients":   recipients,
+                    "date":         date_str,
+                    "received_at":  received_at,
+                    "body_text":    text,
+                    "body_html":    html,
+                    "snippet":      text[:200] if text else "",
+                })
+            except Exception as e:
+                logger.error(
+                    "mailcow.imap.fetch_error",
+                    extra={"uid": str(uid), "error": str(e)},
+                )
+
+        await client.logout()
+        logger.info("mailcow.imap.list_unread", extra={"count": len(messages), "folder": folder})
+        return messages
+
+    async def mark_as_read(self, uid: str, folder: str = "INBOX") -> None:
+        client = await self._connect()
+        await client.select(folder)
+        await client.store(uid, "+FLAGS", "\\Seen")
+        await client.logout()
+        logger.info("mailcow.imap.mark_read", extra={"uid": uid})
+
+
+mailcow_imap_client = MailcowIMAPClient()
+
+
+# ── SMTP — sending ────────────────────────────────────────────────────────────
+
+async def send_email(
+    to: list[str],
+    subject: str,
+    body_text: str,
+    body_html: str | None = None,
+    cc: list[str] | None = None,
+    reply_to: str | None = None,
+) -> dict[str, Any]:
+    """
+    Send email via SMTP (aiosmtplib).
+    Always called through pending_action approval — never directly.
+    """
+    host     = settings.MAILCOW_SMTP_HOST
+    port     = settings.MAILCOW_SMTP_PORT
+    username = settings.MAILCOW_EMAIL_ADDRESS
+    password = settings.MAILCOW_SMTP_PASSWORD
+    use_tls  = settings.MAILCOW_SMTP_TLS
+
+    logger.info(
+        "mailcow.smtp.send_attempt",
+        extra={
+            "host":     host,
+            "port":     port,
+            "username": username,
+            "use_tls":  use_tls,
+            "to":       to,
+            "subject":  subject,
+        },
+    )
+
+    # Build MIME message
+    if body_html:
+        msg = MIMEMultipart("alternative")
+        msg.attach(MIMEText(body_text, "plain", "utf-8"))
+        msg.attach(MIMEText(body_html, "html", "utf-8"))
+    else:
+        msg = MIMEText(body_text, "plain", "utf-8")
+
+    msg["Subject"] = subject
+    msg["From"]    = username
+    msg["To"]      = ", ".join(to)
+    if cc:
+        msg["Cc"] = ", ".join(cc)
+    if reply_to:
+        msg["Reply-To"] = reply_to
+
+    all_recipients = to + (cc or [])
+
+    try:
+        tls_context = ssl.create_default_context()
+        tls_context.check_hostname = True
+        tls_context.verify_mode = ssl.CERT_REQUIRED
+
+        if use_tls:
+            # Port 465 — implicit TLS
+            smtp = aiosmtplib.SMTP(
+                hostname=host,
+                port=port,
+                use_tls=True,
+                tls_context=tls_context,
             )
-            resp.raise_for_status()
+            await smtp.connect()
+            await smtp.login(username, password)
+            await smtp.send_message(msg)
+            await smtp.quit()
+        else:
+            # Port 587 — STARTTLS
+            smtp = aiosmtplib.SMTP(
+                hostname=host,
+                port=port,
+                use_tls=False,
+            )
+            await smtp.connect()
+            await smtp.starttls(tls_context=tls_context)
+            await smtp.login(username, password)
+            await smtp.send_message(msg)
+            await smtp.quit()
+
+        logger.info(
+            "mailcow.smtp.send_ok",
+            extra={"host": host, "username": username, "to": to, "subject": subject},
+        )
+        return {"status": "sent", "to": to, "subject": subject}
+
+    except Exception as e:
+        logger.error(
+            "mailcow.smtp.send_failed",
+            extra={"host": host, "port": port, "username": username, "error": str(e)},
+        )
+        raise
+
+
+# ── Backwards compatibility ───────────────────────────────────────────────────
+
+class MailcowClient:
+    async def send_email(self, **kwargs):
+        return await send_email(**kwargs)
 
 
 mailcow_client = MailcowClient()

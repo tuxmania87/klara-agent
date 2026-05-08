@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.agent.prompts import load_prompt
-from app.integrations import mailcow as mc
+from app.integrations.mailcow import mailcow_imap_client
 from app.models.email import Email
 from app.models.processed_email import ProcessedEmailId
 
@@ -36,22 +36,10 @@ class EmailService:
         return await self._store_messages(raw_messages, source="gmail")
 
     async def ingest_mailcow(self, limit: int = 20) -> list[Email]:
-        """Fetch Mailcow messages, deduplicate, store new ones."""
-        raw_messages = await mc.mailcow_client.list_messages(limit=limit)
-        normalized = []
-        for m in raw_messages:
-            normalized.append(
-                {
-                    "id": str(m.get("uid") or m.get("id", "")),
-                    "subject": m.get("subject", ""),
-                    "sender": m.get("from", ""),
-                    "recipients": m.get("to", ""),
-                    "date": m.get("date", ""),
-                    "body_text": m.get("body_text") or m.get("text", ""),
-                    "body_html": m.get("body_html") or m.get("html", ""),
-                }
-            )
-        return await self._store_messages(normalized, source="mailcow")
+        """Fetch Mailcow messages via IMAP, deduplicate, store new ones."""
+        raw_messages = await mailcow_imap_client.list_unread_messages(limit=limit)
+        # IMAP client already returns normalized dicts — pass through directly
+        return await self._store_messages(raw_messages, source="mailcow")
 
     async def _store_messages(self, raw: list[dict], source: str) -> list[Email]:
         new_emails: list[Email] = []

@@ -2,6 +2,7 @@
 Telegram Bot integration — webhook-based messaging.
 """
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -11,7 +12,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"
-TIMEOUT = httpx.Timeout(15.0)
+TIMEOUT = httpx.Timeout(30.0)
 
 
 async def send_message(
@@ -20,7 +21,9 @@ async def send_message(
     parse_mode: str = "Markdown",
     reply_markup: dict | None = None,
 ) -> dict[str, Any]:
-    """Send a text message to a Telegram chat."""
+    """
+    Send a text message. Falls back to plain text if Markdown is rejected.
+    """
     payload: dict[str, Any] = {
         "chat_id": chat_id,
         "text": text,
@@ -31,13 +34,21 @@ async def send_message(
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         resp = await client.post(f"{TELEGRAM_API}/sendMessage", json=payload)
+
+        # Retry as plain text if Markdown caused a 400
+        if resp.status_code == 400 and parse_mode:
+            logger.warning(
+                "telegram.send_message.markdown_failed",
+                extra={"chat_id": chat_id, "error": resp.text},
+            )
+            plain: dict[str, Any] = {"chat_id": chat_id, "text": text}
+            if reply_markup:
+                plain["reply_markup"] = reply_markup
+            resp = await client.post(f"{TELEGRAM_API}/sendMessage", json=plain)
+
         resp.raise_for_status()
-        data = resp.json()
-        logger.info(
-            "telegram.send_message",
-            extra={"chat_id": chat_id, "text_len": len(text)},
-        )
-        return data
+        logger.info("telegram.send_message", extra={"chat_id": chat_id, "text_len": len(text)})
+        return resp.json()
 
 
 async def send_action_approval_prompt(
@@ -45,21 +56,18 @@ async def send_action_approval_prompt(
     action_id: int,
     description: str,
 ) -> dict[str, Any]:
-    """Send a message asking for approval with inline keyboard buttons."""
     text = (
-        f"⏳ *Pending Action #{action_id}*\n\n"
+        f"Pending Action #{action_id}\n\n"
         f"{description}\n\n"
         f"Do you approve this action?"
     )
     reply_markup = {
-        "inline_keyboard": [
-            [
-                {"text": "✅ Approve", "callback_data": f"approve_{action_id}"},
-                {"text": "❌ Reject", "callback_data": f"reject_{action_id}"},
-            ]
-        ]
+        "inline_keyboard": [[
+            {"text": "✅ Approve", "callback_data": f"approve_{action_id}"},
+            {"text": "❌ Reject",  "callback_data": f"reject_{action_id}"},
+        ]]
     }
-    return await send_message(chat_id, text, reply_markup=reply_markup)
+    return await send_message(chat_id, text, parse_mode="", reply_markup=reply_markup)
 
 
 async def answer_callback_query(callback_query_id: str, text: str = "") -> None:
@@ -70,12 +78,29 @@ async def answer_callback_query(callback_query_id: str, text: str = "") -> None:
         )
 
 
+async def get_file_url(file_id: str) -> str:
+    """Resolve a Telegram file_id to a download URL."""
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        resp = await client.get(f"{TELEGRAM_API}/getFile", params={"file_id": file_id})
+        resp.raise_for_status()
+        file_path = resp.json()["result"]["file_path"]
+        return f"https://api.telegram.org/file/bot{settings.TELEGRAM_BOT_TOKEN}/{file_path}"
+
+
+async def download_file(file_id: str) -> bytes:
+    """Download a Telegram file by file_id and return raw bytes."""
+    url = await get_file_url(file_id)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        logger.info("telegram.download_file", extra={"file_id": file_id, "bytes": len(resp.content)})
+        return resp.content
+
+
 async def set_webhook(webhook_url: str) -> dict[str, Any]:
-    """Register the webhook URL with Telegram."""
     payload: dict[str, Any] = {"url": webhook_url}
     if settings.TELEGRAM_WEBHOOK_SECRET:
         payload["secret_token"] = settings.TELEGRAM_WEBHOOK_SECRET
-
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         resp = await client.post(f"{TELEGRAM_API}/setWebhook", json=payload)
         resp.raise_for_status()
@@ -84,8 +109,11 @@ async def set_webhook(webhook_url: str) -> dict[str, Any]:
 
 def parse_update(data: dict) -> dict[str, Any]:
     """
-    Parse a Telegram update into a normalized dict with keys:
-    type, chat_id, user_id, text, callback_query_id, callback_data, message_id
+    Parse a Telegram update. Handles:
+    - text messages
+    - document attachments (PDF, etc.)
+    - photo attachments
+    - callback queries (inline keyboard)
     """
     result: dict[str, Any] = {}
 
@@ -99,8 +127,30 @@ def parse_update(data: dict) -> dict[str, Any]:
             f"{msg.get('from', {}).get('first_name', '')} "
             f"{msg.get('from', {}).get('last_name', '')}".strip()
         )
-        result["text"] = msg.get("text", "")
         result["message_id"] = msg.get("message_id")
+        result["text"] = msg.get("text", "") or msg.get("caption", "") or ""
+
+        # Document attachment (PDF, DOCX, etc.)
+        if "document" in msg:
+            doc = msg["document"]
+            result["attachment"] = {
+                "type": "document",
+                "file_id": doc["file_id"],
+                "file_name": doc.get("file_name", "document"),
+                "mime_type": doc.get("mime_type", "application/octet-stream"),
+                "file_size": doc.get("file_size", 0),
+            }
+
+        # Photo attachment (highest resolution)
+        elif "photo" in msg:
+            photo = msg["photo"][-1]  # last = largest
+            result["attachment"] = {
+                "type": "photo",
+                "file_id": photo["file_id"],
+                "file_name": "photo.jpg",
+                "mime_type": "image/jpeg",
+                "file_size": photo.get("file_size", 0),
+            }
 
     elif "callback_query" in data:
         cq = data["callback_query"]
