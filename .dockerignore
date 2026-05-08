@@ -1,0 +1,38 @@
+# Secrets — never bake into image
+secrets/
+*.json
+!requirements.txt
+
+# Dev artifacts
+.env
+.env.*
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local tooling
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+
+# Docs / repo
+README.md
+.gitignore
+Makefile
+
+# Tests (not needed at runtime)
+tests/
+
+# OS
+.DS_Store
+Thumbs.db
