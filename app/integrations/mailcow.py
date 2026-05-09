@@ -161,24 +161,47 @@ class MailcowIMAPClient:
 
         for seq in seq_list:
             try:
-                # BODY.PEEK[] does NOT set \Seen — stable read without side effects
-                # We also fetch UID so we can use it as a stable external_id
                 resp = await client.fetch(seq, "(UID BODY.PEEK[])")
+                logger.info(
+                    "mailcow.imap.fetch_raw",
+                    extra={
+                        "seq": str(seq),
+                        "result": resp.result,
+                        "lines_count": len(resp.lines),
+                        "lines_preview": str([
+                            (type(l).__name__, len(l) if isinstance(l, bytes) else str(l)[:60])
+                            for l in resp.lines[:5]
+                        ]),
+                    },
+                )
                 if resp.result != "OK":
                     continue
 
                 raw_email = None
-                uid_str = str(seq.decode() if isinstance(seq, bytes) else seq)  # fallback
+                uid_str = str(seq.decode() if isinstance(seq, bytes) else seq)
                 for line in resp.lines:
                     if isinstance(line, bytes):
-                        # Try to extract UID from the FETCH response line e.g. b'1 FETCH (UID 42 ...'
                         import re
                         m = re.search(rb"UID (\d+)", line)
                         if m:
                             uid_str = m.group(1).decode()
-                        if len(line) > 100:
+                        # Email-Body: muss Return-To oder Received oder MIME enthalten
+                        # len > 100 ist zu unspezifisch — prüfe auf typische Mail-Header
+                        if len(line) > 20 and (
+                            b"Return-Path" in line or b"Received" in line
+                            or b"From:" in line or b"Subject:" in line
+                            or b"MIME-Version" in line or b"Content-Type" in line
+                            or b"Message-ID" in line
+                        ):
                             raw_email = line
+                    elif isinstance(line, (bytearray, memoryview)):
+                        raw_email = bytes(line)
+
                 if not raw_email:
+                    logger.warning(
+                        "mailcow.imap.no_body",
+                        extra={"seq": str(seq), "lines": str(resp.lines)[:200]},
+                    )
                     continue
 
                 msg = email.message_from_bytes(raw_email)
