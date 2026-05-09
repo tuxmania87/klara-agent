@@ -201,7 +201,9 @@ class ToolExecutor:
             "description": description,
             "location": location,
         }
-        desc = "Update Calendar Event\nEvent ID: " + event_id + "\nChanges: " + (changes or "none")
+        desc = f"Neuer Kalendertermin: {title}\n{start_iso} → {end_iso}"
+        if description:
+            desc += f"\n{description}"
         action = await self.action_service.create_action(
             user_id=self.user_id,
             action_type=ActionType.CREATE_CALENDAR_EVENT,
