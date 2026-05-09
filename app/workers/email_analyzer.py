@@ -1,4 +1,5 @@
-"""Email analysis worker — summarizes and classifies new emails."""
+"""Email analysis worker — summarizes, classifies and triages new emails."""
+from __future__ import annotations
 import logging
 
 from app.config import settings
@@ -24,11 +25,14 @@ class EmailAnalyzerWorker(BaseWorker):
                 try:
                     await service.summarize_email(email)
                     result = await service.classify_actionability(email)
+                    # Triage setzt triage_label — der Notifier filtert danach
+                    triage = await service.triage_email(email)
                     logger.info(
                         "email_analyzer.analyzed",
                         extra={
                             "email_id": email.id,
                             "is_actionable": result.get("is_actionable"),
+                            "triage_label": triage.get("triage_label"),
                         },
                     )
                 except Exception as e:
