@@ -124,18 +124,35 @@ class MailcowIMAPClient:
         search_criteria = "UNSEEN" if unseen_only else "ALL"
         # Regular SEARCH returns sequence numbers (UID SEARCH not supported by all servers)
         resp = await client.search(search_criteria)
+        logger.info(
+            "mailcow.imap.search_raw",
+            extra={"result": resp.result, "lines_repr": str(resp.lines)[:300]},
+        )
         if resp.result != "OK":
             await client.logout()
             return []
 
+        # aioimaplib gibt bei SEARCH die IDs unterschiedlich zurück:
+        # Entweder als b'1 2 3' in lines[0], oder als ['1', '2', '3'] direkt,
+        # oder als leeres b'' wenn keine Treffer. Wir probieren alle Varianten.
         raw_ids = ""
-        if resp.lines:
-            first = resp.lines[0]
-            if isinstance(first, bytes):
-                raw_ids = first.decode(errors="replace")
-            elif isinstance(first, str):
-                raw_ids = first
-        seq_list = [u for u in raw_ids.strip().split() if u.strip()]
+        for item in resp.lines:
+            if isinstance(item, bytes):
+                decoded = item.decode(errors="replace").strip()
+                if decoded:
+                    raw_ids = decoded
+                    break
+            elif isinstance(item, str):
+                stripped = item.strip()
+                if stripped:
+                    raw_ids = stripped
+                    break
+            elif isinstance(item, (list, tuple)):
+                # Manchmal kommt eine Liste von IDs direkt
+                raw_ids = " ".join(str(x) for x in item)
+                break
+
+        seq_list = [u for u in raw_ids.strip().split() if u.strip().isdigit()]
 
         if not seq_list:
             await client.logout()
