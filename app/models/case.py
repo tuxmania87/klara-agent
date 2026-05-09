@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Case model — Chronologie für laufende Fälle (Reise, Schule, Behörden, Support)."""
 from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text, func

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Note model — user-created notes stored by the agent."""
 from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text, func

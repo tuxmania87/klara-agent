@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Reminder worker — prüft fällige Erinnerungen und schickt sie per Telegram."""
 import logging
 from sqlalchemy import select

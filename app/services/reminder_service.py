@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Reminder service — Erinnerungen erstellen und abfragen."""
 import logging
 from datetime import datetime, timezone

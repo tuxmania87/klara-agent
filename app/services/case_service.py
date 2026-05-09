@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Case service — Chronologie für laufende Fälle."""
 import logging
 from datetime import datetime, timezone

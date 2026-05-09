@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Note service — CRUD für Notizen."""
 import logging
 from sqlalchemy import select

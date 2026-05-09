@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Email service — ingestion, deduplication, summarization, classification.
 """

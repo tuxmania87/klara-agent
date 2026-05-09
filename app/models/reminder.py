@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Reminder model — zeitbasierte Erinnerungen."""
 from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text, func
