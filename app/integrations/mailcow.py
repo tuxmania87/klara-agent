@@ -132,25 +132,21 @@ class MailcowIMAPClient:
             await client.logout()
             return []
 
-        # aioimaplib gibt bei SEARCH die IDs unterschiedlich zurück:
-        # Entweder als b'1 2 3' in lines[0], oder als ['1', '2', '3'] direkt,
-        # oder als leeres b'' wenn keine Treffer. Wir probieren alle Varianten.
+        # resp.lines sieht so aus: [b'944 947', b'Search completed...']
+        # Die erste bytes-Zeile enthält die Sequence Numbers, space-separiert
         raw_ids = ""
         for item in resp.lines:
             if isinstance(item, bytes):
                 decoded = item.decode(errors="replace").strip()
-                if decoded:
+                # Zeile mit nur Zahlen und Leerzeichen → das sind die IDs
+                if decoded and all(c.isdigit() or c == " " for c in decoded):
                     raw_ids = decoded
                     break
             elif isinstance(item, str):
                 stripped = item.strip()
-                if stripped:
+                if stripped and all(c.isdigit() or c == " " for c in stripped):
                     raw_ids = stripped
                     break
-            elif isinstance(item, (list, tuple)):
-                # Manchmal kommt eine Liste von IDs direkt
-                raw_ids = " ".join(str(x) for x in item)
-                break
 
         seq_list = [u for u in raw_ids.strip().split() if u.strip().isdigit()]
 
