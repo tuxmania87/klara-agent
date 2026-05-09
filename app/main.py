@@ -9,7 +9,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.logging_config import setup_logging
 from app.api.routes import telegram, health, actions, emails
+
+setup_logging()
 from app.workers.email_poller import EmailPollerWorker
 from app.workers.email_analyzer import EmailAnalyzerWorker
 from app.workers.notifier import NotifierWorker
