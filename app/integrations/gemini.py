@@ -339,6 +339,152 @@ TOOL_DECLARATIONS = [
         description="Abendreview: Was ist offen? Was sollte morgen zuerst? Was kann warten?",
         parameters={"type": "object", "properties": {}},
     ),
+    # ── Finanzen ──────────────────────────────────────────────────────────────
+    FunctionDeclaration(
+        name="finance_list_drive_files",
+        description="Listet CSV-Kontoauszüge im konfigurierten Google-Drive-Ordner. Zeigt welche schon importiert sind.",
+        parameters={"type": "object", "properties": {}},
+    ),
+    FunctionDeclaration(
+        name="finance_import_new",
+        description="Importiert alle neuen CSV-Kontoauszüge aus Google Drive die noch nicht importiert wurden.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "account_name": {"type": "string", "description": "Kontoname, z.B. 'DKB Girokonto'. Optional."},
+            },
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_import_file",
+        description="Importiert eine bestimmte CSV-Datei aus Google Drive anhand ihrer Drive-File-ID.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "drive_file_id": {"type": "string", "description": "Google Drive File-ID."},
+                "account_name": {"type": "string", "description": "Kontoname. Optional."},
+                "dry_run": {"type": "boolean", "description": "Nur prüfen, nicht speichern."},
+            },
+            "required": ["drive_file_id"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_monthly_report",
+        description="Erstellt einen Finanzreport für einen bestimmten Monat: Einnahmen, Ausgaben, Kategorien, größte Buchungen.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "year":  {"type": "integer", "description": "Jahr, z.B. 2026."},
+                "month": {"type": "integer", "description": "Monat 1-12."},
+            },
+            "required": ["year", "month"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_compare_months",
+        description="Vergleicht zwei Monate Kategorie für Kategorie — zeigt Unterschiede und Abweichungen.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "year1": {"type": "integer"}, "month1": {"type": "integer"},
+                "year2": {"type": "integer"}, "month2": {"type": "integer"},
+            },
+            "required": ["year1", "month1", "year2", "month2"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_subscriptions",
+        description="Erkennt wiederkehrende Zahlungen/Abos und schätzt die monatlichen Gesamtkosten.",
+        parameters={"type": "object", "properties": {}},
+    ),
+    FunctionDeclaration(
+        name="finance_unclear",
+        description="Zeigt Transaktionen mit unklarer Kategorisierung.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Anzahl, default 20."},
+            },
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_add_rule",
+        description="Fügt eine Kategorisierungsregel hinzu und wendet sie sofort auf bestehende Transaktionen an. Z.B. 'REWE' → Lebensmittel.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "pattern":    {"type": "string", "description": "Suchbegriff, z.B. 'REWE' oder 'Bijou Brigitte'."},
+                "category":   {"type": "string", "description": "Zielkategorie."},
+                "subcategory":{"type": "string", "description": "Unterkategorie. Optional."},
+            },
+            "required": ["pattern", "category"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_recategorize",
+        description="Korrigiert die Kategorie einer einzelnen Transaktion manuell.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "transaction_id": {"type": "integer"},
+                "category":       {"type": "string"},
+                "subcategory":    {"type": "string", "description": "Optional."},
+            },
+            "required": ["transaction_id", "category"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_set_budget",
+        description="Setzt ein Monatsbudget für eine Kategorie.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "category":   {"type": "string"},
+                "amount":     {"type": "number", "description": "Budgetbetrag in Euro."},
+                "month_year": {"type": "string", "description": "z.B. '2026-05' oder 'default' für dauerhaft."},
+            },
+            "required": ["category", "amount"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_budget_status",
+        description="Zeigt den aktuellen Budgetstatus für alle Kategorien im angegebenen Monat.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "year":  {"type": "integer"},
+                "month": {"type": "integer"},
+            },
+            "required": ["year", "month"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_refunds",
+        description="Analysiert Rückerstattungen der letzten Monate — zeigt offene und gebuchte Erstattungen.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "months_back": {"type": "integer", "description": "Wie viele Monate zurück, default 3."},
+            },
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_outliers",
+        description="Findet ungewöhnliche Buchungen im Monat: sehr hohe Beträge, neue Händler, unklare Kategorien.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "year":  {"type": "integer"},
+                "month": {"type": "integer"},
+            },
+            "required": ["year", "month"],
+        },
+    ),
+    FunctionDeclaration(
+        name="finance_list_imported",
+        description="Zeigt alle bereits importierten Kontoauszugsdateien.",
+        parameters={"type": "object", "properties": {}},
+    ),
 ]
 
 GEMINI_TOOLS = [Tool(function_declarations=TOOL_DECLARATIONS)]

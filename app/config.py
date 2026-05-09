@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     ]
     GCAL_TIMEZONE: str = "Europe/Berlin"
 
+    # ── Google Drive (Finanzdaten) ────────────────────────────────────────────
+    GDRIVE_CREDENTIALS_JSON: str = "/secrets/gdrive_credentials.json"
+    GDRIVE_TOKEN_JSON: str = "/secrets/gdrive_token.json"
+    GDRIVE_SCOPES: list[str] = ["https://www.googleapis.com/auth/drive.readonly"]
+    # ID des Google-Drive-Ordners mit Kontoauszügen (aus URL: drive.google.com/drive/folders/<ID>)
+    GDRIVE_FINANCE_FOLDER_ID: str = ""
+    # Standardkonto-Name wenn nicht aus CSV ableitbar
+    FINANCE_DEFAULT_ACCOUNT: str = "DKB Girokonto"
+
     # ── Mailcow ──────────────────────────────────────────────────────────────
     MAILCOW_API_URL: str = ""          # e.g. https://mail.example.com/api/v1
     MAILCOW_API_KEY: str = ""

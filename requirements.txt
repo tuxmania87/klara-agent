@@ -32,3 +32,5 @@ pytest-cov==6.0.0
 aiosqlite==0.20.0
 pypdf==4.3.1
 aiosmtplib==3.0.1
+pandas==2.2.3
+openpyxl==3.1.5

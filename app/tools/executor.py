@@ -15,6 +15,7 @@ from app.services.action_service import ActionService
 from app.services.note_service import NoteService
 from app.services.reminder_service import ReminderService
 from app.services.case_service import CaseService
+from app.services.finance_service import FinanceService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class ToolExecutor:
         self.note_service = NoteService(db)
         self.reminder_service = ReminderService(db)
         self.case_service = CaseService(db)
+        self.finance_service = FinanceService(db)
 
     @staticmethod
     def _sanitize_args(args: Any) -> Any:
@@ -80,6 +82,21 @@ class ToolExecutor:
             # Briefing
             "daily_briefing":  self._daily_briefing,
             "evening_review":  self._evening_review,
+            # Finanzen
+            "finance_list_drive_files": self._finance_list_drive_files,
+            "finance_import_new":       self._finance_import_new,
+            "finance_import_file":      self._finance_import_file,
+            "finance_monthly_report":   self._finance_monthly_report,
+            "finance_compare_months":   self._finance_compare_months,
+            "finance_subscriptions":    self._finance_subscriptions,
+            "finance_unclear":          self._finance_unclear,
+            "finance_add_rule":         self._finance_add_rule,
+            "finance_recategorize":     self._finance_recategorize,
+            "finance_set_budget":       self._finance_set_budget,
+            "finance_budget_status":    self._finance_budget_status,
+            "finance_refunds":          self._finance_refunds,
+            "finance_outliers":         self._finance_outliers,
+            "finance_list_imported":    self._finance_list_imported,
         }
 
         handler = dispatch.get(tool_name)
@@ -784,3 +801,52 @@ class ToolExecutor:
                 for n in open_tasks
             ],
         }
+
+    # ── Finanzen ──────────────────────────────────────────────────────────────
+
+    async def _finance_list_drive_files(self) -> dict:
+        files = await self.finance_service.list_drive_files()
+        new = [f for f in files if not f.get("already_imported") and "error" not in f]
+        return {"total": len(files), "new_files": len(new), "files": files}
+
+    async def _finance_import_new(self, account_name: str | None = None) -> dict:
+        return await self.finance_service.import_new_files()
+
+    async def _finance_import_file(self, drive_file_id: str, account_name: str | None = None, dry_run: bool = False) -> dict:
+        return await self.finance_service.import_file(drive_file_id, account_name=account_name, dry_run=dry_run)
+
+    async def _finance_monthly_report(self, year: int, month: int) -> dict:
+        return await self.finance_service.monthly_report(int(year), int(month))
+
+    async def _finance_compare_months(self, year1: int, month1: int, year2: int, month2: int) -> dict:
+        return await self.finance_service.compare_months(int(year1), int(month1), int(year2), int(month2))
+
+    async def _finance_subscriptions(self) -> dict:
+        return await self.finance_service.detect_subscriptions()
+
+    async def _finance_unclear(self, limit: int = 20) -> dict:
+        txs = await self.finance_service.get_unclear_transactions(limit=int(limit))
+        return {"count": len(txs), "transactions": txs}
+
+    async def _finance_add_rule(self, pattern: str, category: str, subcategory: str | None = None) -> dict:
+        return await self.finance_service.add_rule(pattern, category, subcategory=subcategory)
+
+    async def _finance_recategorize(self, transaction_id: int, category: str, subcategory: str | None = None) -> dict:
+        return await self.finance_service.recategorize(int(transaction_id), category, subcategory)
+
+    async def _finance_set_budget(self, category: str, amount: float, month_year: str = "default") -> dict:
+        return await self.finance_service.set_budget(category, float(amount), month_year)
+
+    async def _finance_budget_status(self, year: int, month: int) -> dict:
+        status = await self.finance_service.budget_status(int(year), int(month))
+        return {"budget_status": status}
+
+    async def _finance_refunds(self, months_back: int = 3) -> dict:
+        return await self.finance_service.refund_analysis(months_back=int(months_back))
+
+    async def _finance_outliers(self, year: int, month: int) -> dict:
+        return await self.finance_service.outliers(int(year), int(month))
+
+    async def _finance_list_imported(self) -> dict:
+        files = await self.finance_service.list_imported_files()
+        return {"count": len(files), "files": files}

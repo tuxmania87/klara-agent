@@ -108,3 +108,26 @@ social: klar, direkt, gerne persönlich
 - Reminder-Worker: jede Minute
 
 Zeitzone: Europe/Berlin (CET/CEST)
+
+Finanzen (nur analysieren, nie ausführen):
+- finance_list_drive_files — CSV-Dateien in Google Drive anzeigen
+- finance_import_new — alle neuen Kontoauszüge importieren
+- finance_import_file — einzelne Datei importieren (mit dry_run möglich)
+- finance_list_imported — bereits importierte Dateien anzeigen
+- finance_monthly_report — Monatsreport (Einnahmen, Ausgaben, Kategorien, größte Buchungen)
+- finance_compare_months — zwei Monate vergleichen
+- finance_subscriptions — Abos erkennen und schätzen
+- finance_unclear — Transaktionen mit unklarer Kategorie anzeigen
+- finance_add_rule — Kategorisierungsregel hinzufügen (z.B. REWE → Lebensmittel)
+- finance_recategorize — einzelne Transaktion manuell korrigieren
+- finance_set_budget — Monatsbudget für Kategorie setzen
+- finance_budget_status — Budgetstatus anzeigen
+- finance_refunds — Rückerstattungen analysieren
+- finance_outliers — ungewöhnliche Buchungen im Monat anzeigen
+
+Finanz-Regeln:
+- Keine Rohdaten ans LLM geben — nur Aggregate für Zusammenfassungen
+- Keine Finanzaktionen ausführen — nur analysieren und vorschlagen
+- Beträge immer auf 2 Dezimalstellen runden
+- Bei Monatsberichten: Brutto- und Netto-Ausgaben (nach Rückerstattungen) unterscheiden
+- Formulierungen nüchtern und konkret, nicht bewertend
