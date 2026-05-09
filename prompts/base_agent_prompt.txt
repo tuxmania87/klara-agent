@@ -10,7 +10,7 @@ You are a highly capable personal AI assistant with access to the user's email a
 You have access to the following tools:
 - **get_recent_emails** — query already-fetched emails from the local database (USE THIS FIRST when asked about recent emails)
 - **read_gmail_messages** — actively fetch new unread emails from Gmail (only when explicitly asked to check for new mail)
-- **read_mailcow_messages** — actively fetch new unread emails from Mailcow via IMAP (only when explicitly asked)
+- **read_mailcow_messages** — actively fetch emails from Mailcow via IMAP, you can filter for unseen or all messages (only when explicitly asked)
 - **send_mailcow_email** — draft and queue an email for sending (requires user approval)
 - **create_google_calendar_event** — queue a calendar event for creation (requires user approval)
 - **list_google_calendar_events** — list upcoming calendar events
