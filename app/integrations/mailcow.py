@@ -122,13 +122,13 @@ class MailcowIMAPClient:
             raise ConnectionError(f"IMAP SELECT '{folder}' failed: {resp.lines}")
 
         search_criteria = "UNSEEN" if unseen_only else "ALL"
-        resp = await client.search(search_criteria)
+        # Use UID SEARCH so we get stable UIDs, not sequence numbers that shift
+        resp = await client.uid("search", search_criteria)
         if resp.result != "OK":
             await client.logout()
             return []
 
-        # aioimaplib SEARCH returns lines[0] as bytes OR as b'' for empty inbox
-        # guard against integers or other unexpected types
+        # aioimaplib UID SEARCH returns lines[0] as bytes OR as b'' for empty inbox
         raw_ids = ""
         if resp.lines:
             first = resp.lines[0]
@@ -140,15 +140,17 @@ class MailcowIMAPClient:
 
         if not uid_list:
             await client.logout()
-            logger.info("mailcow.imap.list_unread", extra={"count": 0, "folder": folder})
+            logger.info("mailcow.imap.list_messages", extra={"count": 0, "folder": folder})
             return []
 
+        # Take the most recent `limit` UIDs (UIDs are monotonically increasing)
         uid_list = uid_list[-limit:]
         messages = []
 
         for uid in uid_list:
             try:
-                resp = await client.fetch(uid, "(RFC822)")
+                # BODY.PEEK does NOT set the \Seen flag — we decide when to mark as read
+                resp = await client.uid("fetch", uid, "(BODY.PEEK[])")
                 if resp.result != "OK":
                     continue
 
@@ -193,13 +195,13 @@ class MailcowIMAPClient:
                 )
 
         await client.logout()
-        logger.info("mailcow.imap.list_unread", extra={"count": len(messages), "folder": folder})
+        logger.info("mailcow.imap.list_messages", extra={"count": len(messages), "folder": folder, "uid_search": True})
         return messages
 
     async def mark_as_read(self, uid: str, folder: str = "INBOX") -> None:
         client = await self._connect()
         await client.select(folder)
-        await client.store(uid, "+FLAGS", "\\Seen")
+        await client.uid("store", uid, "+FLAGS", "\\Seen")
         await client.logout()
         logger.info("mailcow.imap.mark_read", extra={"uid": uid})
 

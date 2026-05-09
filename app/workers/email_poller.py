@@ -27,7 +27,7 @@ class EmailPollerWorker(BaseWorker):
             # Poll Mailcow
             if settings.MAILCOW_API_URL:
                 try:
-                    mco_new = await service.ingest_mailcow()
+                    mco_new = await service.ingest_mailcow(unseen_only=True)
                     logger.info("email_poller.mailcow", extra={"new_count": len(mco_new)})
                 except Exception as e:
                     logger.error("email_poller.mailcow.error", extra={"error": str(e)})
