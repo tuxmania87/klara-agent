@@ -35,9 +35,9 @@ class EmailService:
         )
         return await self._store_messages(raw_messages, source="gmail")
 
-    async def ingest_mailcow(self, limit: int = 20) -> list[Email]:
+    async def ingest_mailcow(self, limit: int = 20, unseen_only=False) -> list[Email]:
         """Fetch Mailcow messages via IMAP, deduplicate, store new ones."""
-        raw_messages = await mailcow_imap_client.list_unread_messages(limit=limit)
+        raw_messages = await mailcow_imap_client.list_messages(limit=limit, unseen_only=unseen_only)
         # IMAP client already returns normalized dicts — pass through directly
         return await self._store_messages(raw_messages, source="mailcow")
 
