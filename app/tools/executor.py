@@ -12,6 +12,7 @@ from app.config import settings
 from app.models.pending_action import ActionType, ActionStatus
 from app.services.email_service import EmailService
 from app.services.action_service import ActionService
+from app.services.note_service import NoteService
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class ToolExecutor:
         self.user_id = user_id
         self.email_service = EmailService(db)
         self.action_service = ActionService(db)
+        self.note_service = NoteService(db)
 
     @staticmethod
     def _sanitize_args(args: Any) -> Any:
@@ -52,6 +54,11 @@ class ToolExecutor:
             "update_google_calendar_event": self._queue_update_calendar_event,
             "delete_google_calendar_event": self._queue_delete_calendar_event,
             "find_google_calendar_events":  self._find_calendar_events,
+            "save_note":    self._save_note,
+            "list_notes":   self._list_notes,
+            "search_notes": self._search_notes,
+            "delete_note":  self._delete_note,
+            "google_search": self._google_search,
         }
 
         handler = dispatch.get(tool_name)
@@ -393,3 +400,63 @@ class ToolExecutor:
                 result = await self.email_service.classify_actionability(email)
                 results.append({"email_id": eid, **result})
         return {"results": results}
+
+    # ── Notizen ───────────────────────────────────────────────────────────────
+
+    async def _save_note(self, content: str, title: str | None = None, tags: str | None = None) -> dict:
+        note = await self.note_service.create(
+            user_id=self.user_id, content=content, title=title, tags=tags
+        )
+        return {
+            "status": "saved",
+            "note_id": note.id,
+            "title": note.title,
+            "tags": note.tags,
+            "created_at": str(note.created_at),
+        }
+
+    async def _list_notes(self, limit: int = 10, tag: str | None = None) -> dict:
+        notes = await self.note_service.list(user_id=self.user_id, limit=int(limit), tag=tag)
+        return {
+            "count": len(notes),
+            "notes": [
+                {
+                    "id": n.id,
+                    "title": n.title,
+                    "tags": n.tags,
+                    "preview": n.content[:200],
+                    "created_at": str(n.created_at),
+                }
+                for n in notes
+            ],
+        }
+
+    async def _search_notes(self, query: str) -> dict:
+        notes = await self.note_service.search(user_id=self.user_id, query=query)
+        return {
+            "query": query,
+            "count": len(notes),
+            "notes": [
+                {
+                    "id": n.id,
+                    "title": n.title,
+                    "tags": n.tags,
+                    "preview": n.content[:300],
+                    "created_at": str(n.created_at),
+                }
+                for n in notes
+            ],
+        }
+
+    async def _delete_note(self, note_id: int) -> dict:
+        deleted = await self.note_service.delete(user_id=self.user_id, note_id=int(note_id))
+        if deleted:
+            return {"status": "deleted", "note_id": note_id}
+        return {"status": "not_found", "note_id": note_id}
+
+    # ── Google Search ─────────────────────────────────────────────────────────
+
+    async def _google_search(self, query: str, num_results: int = 5) -> dict:
+        from app.integrations.google_search import google_search
+        results = await google_search(query=query, num_results=int(num_results))
+        return {"query": query, "count": len(results), "results": results}

@@ -61,7 +61,8 @@ class Settings(BaseSettings):
     NOTIFICATION_POLL_INTERVAL_SECONDS: int = 30
     GMAIL_MAX_RESULTS: int = 20
 
-    # ── Prompts ──────────────────────────────────────────────────────────────
+    # ── Google Search (SerpAPI) ──────────────────────────────────────────────
+    SERPAPI_KEY: str = ""              # https://serpapi.com → kostenloser Account reicht
     PROMPTS_DIR: str = "/app/prompts"
 
 

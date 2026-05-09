@@ -138,6 +138,64 @@ TOOL_DECLARATIONS = [
         description="Get current agent status: polling schedule, active integrations, email/action counts.",
         parameters={"type": "object", "properties": {}},
     ),
+    FunctionDeclaration(
+        name="save_note",
+        description="Speichert eine Notiz für den User in der Datenbank.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "Inhalt der Notiz."},
+                "title":   {"type": "string", "description": "Optionaler Titel."},
+                "tags":    {"type": "string", "description": "Optionale Tags, komma-separiert z.B. 'arbeit,idee'."},
+            },
+            "required": ["content"],
+        },
+    ),
+    FunctionDeclaration(
+        name="list_notes",
+        description="Listet gespeicherte Notizen des Users auf.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Maximale Anzahl, default 10."},
+                "tag":   {"type": "string",  "description": "Optional: nur Notizen mit diesem Tag."},
+            },
+        },
+    ),
+    FunctionDeclaration(
+        name="search_notes",
+        description="Durchsucht gespeicherte Notizen nach einem Stichwort.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Suchbegriff."},
+            },
+            "required": ["query"],
+        },
+    ),
+    FunctionDeclaration(
+        name="delete_note",
+        description="Löscht eine Notiz anhand ihrer ID.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "integer", "description": "ID der Notiz."},
+            },
+            "required": ["note_id"],
+        },
+    ),
+    FunctionDeclaration(
+        name="google_search",
+        description="Führt eine Google-Suche durch und gibt die Top-Ergebnisse zurück.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query":       {"type": "string",  "description": "Suchanfrage."},
+                "num_results": {"type": "integer", "description": "Anzahl Ergebnisse, default 5."},
+            },
+            "required": ["query"],
+        },
+    ),
 ]
 
 GEMINI_TOOLS = [Tool(function_declarations=TOOL_DECLARATIONS)]

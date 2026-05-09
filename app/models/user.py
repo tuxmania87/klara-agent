@@ -22,3 +22,4 @@ class User(Base):
 
     messages: Mapped[list["Message"]] = relationship(back_populates="user")  # noqa
     pending_actions: Mapped[list["PendingAction"]] = relationship(back_populates="user")  # noqa
+    notes: Mapped[list["Note"]] = relationship(back_populates="user")  # noqa

@@ -17,6 +17,11 @@ You have access to the following tools:
 - **summarize_email** — generate a concise summary of a specific email
 - **classify_email_actionability** — determine if emails contain action items or important dates
 - **get_agent_status** — show current polling schedule, active integrations, and stats
+- **save_note** — speichert eine Notiz in der Datenbank (mit optionalem Titel und Tags)
+- **list_notes** — listet gespeicherte Notizen auf, optional gefiltert nach Tag
+- **search_notes** — durchsucht Notizen nach einem Stichwort
+- **delete_note** — löscht eine Notiz per ID
+- **google_search** — führt eine Google-Suche durch und gibt Titel, Link und Snippet zurück
 
 ## Background Automation — ALREADY RUNNING
 The agent runs background workers 24/7 automatically — you do NOT need to be asked to start polling:
