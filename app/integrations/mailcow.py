@@ -107,10 +107,11 @@ class MailcowIMAPClient:
         )
         return client
 
-    async def list_unread_messages(
+    async def list_messages(
         self,
         folder: str = "INBOX",
         limit: int = 20,
+        unseen_only: bool = False,
     ) -> list[dict[str, Any]]:
         """Fetch unread messages. Returns normalized dicts."""
         client = await self._connect()
@@ -120,7 +121,8 @@ class MailcowIMAPClient:
             await client.logout()
             raise ConnectionError(f"IMAP SELECT '{folder}' failed: {resp.lines}")
 
-        resp = await client.search("ALL")
+        search_criteria = "UNSEEN" if unseen_only else "ALL"
+        resp = await client.search(search_criteria)
         if resp.result != "OK":
             await client.logout()
             return []
