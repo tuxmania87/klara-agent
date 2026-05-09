@@ -122,13 +122,12 @@ class MailcowIMAPClient:
             raise ConnectionError(f"IMAP SELECT '{folder}' failed: {resp.lines}")
 
         search_criteria = "UNSEEN" if unseen_only else "ALL"
-        # Use UID SEARCH so we get stable UIDs, not sequence numbers that shift
-        resp = await client.uid("search", search_criteria)
+        # Regular SEARCH returns sequence numbers (UID SEARCH not supported by all servers)
+        resp = await client.search(search_criteria)
         if resp.result != "OK":
             await client.logout()
             return []
 
-        # aioimaplib UID SEARCH returns lines[0] as bytes OR as b'' for empty inbox
         raw_ids = ""
         if resp.lines:
             first = resp.lines[0]
@@ -136,29 +135,36 @@ class MailcowIMAPClient:
                 raw_ids = first.decode(errors="replace")
             elif isinstance(first, str):
                 raw_ids = first
-        uid_list = [u for u in raw_ids.strip().split() if u.strip()]
+        seq_list = [u for u in raw_ids.strip().split() if u.strip()]
 
-        if not uid_list:
+        if not seq_list:
             await client.logout()
             logger.info("mailcow.imap.list_messages", extra={"count": 0, "folder": folder})
             return []
 
-        # Take the most recent `limit` UIDs (UIDs are monotonically increasing)
-        uid_list = uid_list[-limit:]
+        # Take the most recent `limit` sequence numbers
+        seq_list = seq_list[-limit:]
         messages = []
 
-        for uid in uid_list:
+        for seq in seq_list:
             try:
-                # BODY.PEEK does NOT set the \Seen flag — we decide when to mark as read
-                resp = await client.uid("fetch", uid, "(BODY.PEEK[])")
+                # BODY.PEEK[] does NOT set \Seen — stable read without side effects
+                # We also fetch UID so we can use it as a stable external_id
+                resp = await client.fetch(seq, "(UID BODY.PEEK[])")
                 if resp.result != "OK":
                     continue
 
                 raw_email = None
+                uid_str = str(seq.decode() if isinstance(seq, bytes) else seq)  # fallback
                 for line in resp.lines:
-                    if isinstance(line, bytes) and len(line) > 100:
-                        raw_email = line
-                        break
+                    if isinstance(line, bytes):
+                        # Try to extract UID from the FETCH response line e.g. b'1 FETCH (UID 42 ...'
+                        import re
+                        m = re.search(rb"UID (\d+)", line)
+                        if m:
+                            uid_str = m.group(1).decode()
+                        if len(line) > 100:
+                            raw_email = line
                 if not raw_email:
                     continue
 
@@ -176,7 +182,6 @@ class MailcowIMAPClient:
                     except Exception:
                         pass
 
-                uid_str = uid.decode() if isinstance(uid, bytes) else str(uid)
                 messages.append({
                     "id":           uid_str,
                     "subject":      subject,
@@ -191,16 +196,17 @@ class MailcowIMAPClient:
             except Exception as e:
                 logger.error(
                     "mailcow.imap.fetch_error",
-                    extra={"uid": str(uid), "error": str(e)},
+                    extra={"seq": str(seq), "error": str(e)},
                 )
 
         await client.logout()
-        logger.info("mailcow.imap.list_messages", extra={"count": len(messages), "folder": folder, "uid_search": True})
+        logger.info("mailcow.imap.list_messages", extra={"count": len(messages), "folder": folder})
         return messages
 
     async def mark_as_read(self, uid: str, folder: str = "INBOX") -> None:
         client = await self._connect()
         await client.select(folder)
+        # UID STORE for stable addressing
         await client.uid("store", uid, "+FLAGS", "\\Seen")
         await client.logout()
         logger.info("mailcow.imap.mark_read", extra={"uid": uid})
