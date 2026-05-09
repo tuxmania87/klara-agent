@@ -115,12 +115,43 @@ class ActionService:
             return f"Email sent to {', '.join(payload['to'])} — Subject: {payload['subject']}"
 
         elif action.action_type == ActionType.CREATE_CALENDAR_EVENT:
-            from app.integrations.google_calendar import create_event
+            from app.integrations.google_calendar import create_event, update_event, delete_event
             from datetime import datetime
 
+            # Delete action
+            if payload.get("action") == "delete":
+                event_id = payload["event_id"]
+                await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: delete_event(event_id)
+                )
+                return "Calendar event deleted: " + event_id
+
+            # Update action
+            if payload.get("event_id") and not payload.get("title") and not payload.get("start_iso"):
+                # has event_id but checking if it is an update (has at least one field)
+                pass
+
+            if payload.get("event_id"):
+                event_id = payload["event_id"]
+                start = datetime.fromisoformat(payload["start_iso"]) if payload.get("start_iso") else None
+                end   = datetime.fromisoformat(payload["end_iso"])   if payload.get("end_iso")   else None
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: update_event(
+                        event_id=event_id,
+                        title=payload.get("title"),
+                        start=start,
+                        end=end,
+                        description=payload.get("description"),
+                        location=payload.get("location"),
+                    ),
+                )
+                return "Calendar event updated: " + event_id
+
+            # Create action
             start = datetime.fromisoformat(payload["start_iso"])
-            end = datetime.fromisoformat(payload["end_iso"])
-            event = await asyncio.get_event_loop().run_in_executor(
+            end   = datetime.fromisoformat(payload["end_iso"])
+            await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: create_event(
                     title=payload["title"],
@@ -130,6 +161,6 @@ class ActionService:
                     location=payload.get("location", ""),
                 ),
             )
-            return f"Calendar event created: {payload['title']} on {payload['start_iso']}"
+            return "Calendar event created: " + payload["title"] + " on " + payload["start_iso"]
 
         return "Executed."

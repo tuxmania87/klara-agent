@@ -97,3 +97,74 @@ def list_events(
     except HttpError as e:
         logger.error("gcal.list_events.error", extra={"error": str(e)})
         raise
+
+
+def update_event(
+    event_id: str,
+    title: str | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    description: str | None = None,
+    location: str | None = None,
+    timezone: str | None = None,
+) -> dict[str, Any]:
+    """Update an existing Google Calendar event by event ID."""
+    tz = timezone or settings.GCAL_TIMEZONE
+    try:
+        service = _build_service()
+        # Fetch existing event first
+        existing = service.events().get(calendarId="primary", eventId=event_id).execute()
+
+        if title:
+            existing["summary"] = title
+        if description is not None:
+            existing["description"] = description
+        if location is not None:
+            existing["location"] = location
+        if start:
+            existing["start"] = {"dateTime": start.isoformat(), "timeZone": tz}
+        if end:
+            existing["end"] = {"dateTime": end.isoformat(), "timeZone": tz}
+
+        updated = service.events().update(
+            calendarId="primary", eventId=event_id, body=existing
+        ).execute()
+        logger.info("gcal.update_event", extra={"event_id": event_id})
+        return updated
+    except HttpError as e:
+        logger.error("gcal.update_event.error", extra={"error": str(e)})
+        raise
+
+
+def delete_event(event_id: str) -> dict[str, Any]:
+    """Delete a Google Calendar event by event ID."""
+    try:
+        service = _build_service()
+        service.events().delete(calendarId="primary", eventId=event_id).execute()
+        logger.info("gcal.delete_event", extra={"event_id": event_id})
+        return {"deleted": True, "event_id": event_id}
+    except HttpError as e:
+        logger.error("gcal.delete_event.error", extra={"error": str(e)})
+        raise
+
+
+def find_events(query: str, max_results: int = 10) -> list[dict[str, Any]]:
+    """Search Google Calendar events by text query."""
+    try:
+        service = _build_service()
+        from datetime import timezone as tz_mod
+        now = datetime.now(tz_mod.utc).isoformat()
+        result = service.events().list(
+            calendarId="primary",
+            q=query,
+            timeMin=now,
+            maxResults=max_results,
+            singleEvents=True,
+            orderBy="startTime",
+        ).execute()
+        events = result.get("items", [])
+        logger.info("gcal.find_events", extra={"query": query, "count": len(events)})
+        return events
+    except HttpError as e:
+        logger.error("gcal.find_events.error", extra={"error": str(e)})
+        raise

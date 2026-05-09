@@ -120,7 +120,7 @@ class MailcowIMAPClient:
             await client.logout()
             raise ConnectionError(f"IMAP SELECT '{folder}' failed: {resp.lines}")
 
-        resp = await client.search("UNSEEN")
+        resp = await client.search("ALL")
         if resp.result != "OK":
             await client.logout()
             return []
@@ -214,16 +214,18 @@ async def send_email(
     body_html: str | None = None,
     cc: list[str] | None = None,
     reply_to: str | None = None,
+    from_addr: str | None = None,   # override sender display name/address
 ) -> dict[str, Any]:
     """
     Send email via SMTP (aiosmtplib).
     Always called through pending_action approval — never directly.
     """
-    host     = settings.MAILCOW_SMTP_HOST
-    port     = settings.MAILCOW_SMTP_PORT
-    username = settings.MAILCOW_EMAIL_ADDRESS
-    password = settings.MAILCOW_SMTP_PASSWORD
-    use_tls  = settings.MAILCOW_SMTP_TLS
+    host      = settings.MAILCOW_SMTP_HOST
+    port      = settings.MAILCOW_SMTP_PORT
+    username  = settings.MAILCOW_EMAIL_ADDRESS
+    password  = settings.MAILCOW_SMTP_PASSWORD
+    use_tls   = settings.MAILCOW_SMTP_TLS
+    from_addr = from_addr or username
 
     logger.info(
         "mailcow.smtp.send_attempt",
@@ -246,7 +248,7 @@ async def send_email(
         msg = MIMEText(body_text, "plain", "utf-8")
 
     msg["Subject"] = subject
-    msg["From"]    = username
+    msg["From"]    = from_addr
     msg["To"]      = ", ".join(to)
     if cc:
         msg["Cc"] = ", ".join(cc)

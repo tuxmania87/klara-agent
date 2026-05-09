@@ -48,6 +48,10 @@ class ToolExecutor:
             "summarize_email": self._summarize_email,
             "classify_email_actionability": self._classify_emails,
             "get_agent_status": self._get_agent_status,
+            "get_recent_emails": self._get_recent_emails,
+            "update_google_calendar_event": self._queue_update_calendar_event,
+            "delete_google_calendar_event": self._queue_delete_calendar_event,
+            "find_google_calendar_events":  self._find_calendar_events,
         }
 
         handler = dispatch.get(tool_name)
@@ -107,6 +111,7 @@ class ToolExecutor:
         body_text: str,
         body_html: str | None = None,
         cc: list[str] | None = None,
+        from_addr: str | None = None,
     ) -> dict:
         """Create a pending action for email sending — requires approval."""
         payload = {
@@ -115,6 +120,7 @@ class ToolExecutor:
             "body_text": body_text,
             "body_html": body_html,
             "cc": cc or [],
+            "from_addr": from_addr,
         }
         description = (
             f"📧 *Send Email*\n"
@@ -150,13 +156,7 @@ class ToolExecutor:
             "description": description,
             "location": location,
         }
-        desc = (
-            f"📅 *Calendar Event*\n"
-            f"Title: {title}\n"
-            f"Start: {start_iso}\n"
-            f"End: {end_iso}\n"
-            f"Location: {location or 'N/A'}"
-        )
+        desc = "Update Calendar Event\nEvent ID: " + event_id + "\nChanges: " + (changes or "none")
         action = await self.action_service.create_action(
             user_id=self.user_id,
             action_type=ActionType.CREATE_CALENDAR_EVENT,
@@ -196,6 +196,150 @@ class ToolExecutor:
             return {"error": f"Email {email_id} not found."}
         summary = await self.email_service.summarize_email(email)
         return {"email_id": email_id, "summary": summary}
+
+
+    async def _queue_update_calendar_event(
+        self,
+        event_id: str,
+        title: str | None = None,
+        start_iso: str | None = None,
+        end_iso: str | None = None,
+        description: str | None = None,
+        location: str | None = None,
+    ) -> dict:
+        """Queue a calendar event update — requires approval."""
+        payload = {
+            "event_id": event_id,
+            "title": title,
+            "start_iso": start_iso,
+            "end_iso": end_iso,
+            "description": description,
+            "location": location,
+        }
+        changes = ", ".join(
+            f"{k}={v}" for k, v in payload.items()
+            if v is not None and k != "event_id"
+        )
+        desc = "Update Calendar Event\nEvent ID: " + event_id + "\nChanges: " + (changes or "none")
+        action = await self.action_service.create_action(
+            user_id=self.user_id,
+            action_type=ActionType.CREATE_CALENDAR_EVENT,
+            payload=payload,
+            description=desc,
+        )
+        return {"status": "pending_approval", "action_id": action.id,
+                "message": "Calendar update queued for approval."}
+
+    async def _queue_delete_calendar_event(
+        self,
+        event_id: str,
+        title: str | None = None,
+    ) -> dict:
+        """Queue a calendar event deletion — requires approval."""
+        payload = {"event_id": event_id, "action": "delete"}
+        desc = "Delete Calendar Event\nTitle: " + (title or "Unknown") + "\nEvent ID: " + event_id
+        action = await self.action_service.create_action(
+            user_id=self.user_id,
+            action_type=ActionType.CREATE_CALENDAR_EVENT,
+            payload=payload,
+            description=desc,
+        )
+        return {"status": "pending_approval", "action_id": action.id,
+                "message": "Calendar deletion queued for approval."}
+
+    async def _find_calendar_events(self, query: str, max_results: int = 10) -> dict:
+        """Search calendar events by text."""
+        from app.integrations.google_calendar import find_events
+        import asyncio
+        max_results = int(max_results)
+        events = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: find_events(query=query, max_results=max_results)
+        )
+        simplified = []
+        for e in events:
+            start = e.get("start", {})
+            simplified.append({
+                "id":       e.get("id"),
+                "title":    e.get("summary"),
+                "start":    start.get("dateTime") or start.get("date"),
+                "location": e.get("location", ""),
+            })
+        return {"query": query, "count": len(simplified), "events": simplified}
+
+
+    async def _queue_update_calendar_event(
+        self,
+        event_id: str,
+        title: str | None = None,
+        start_iso: str | None = None,
+        end_iso: str | None = None,
+        description: str | None = None,
+        location: str | None = None,
+    ) -> dict:
+        payload = {
+            "event_id": event_id, "title": title, "start_iso": start_iso,
+            "end_iso": end_iso, "description": description, "location": location,
+        }
+        changes = ", ".join(f"{k}={v}" for k, v in payload.items() if v is not None and k != "event_id")
+        desc = "Update Calendar Event / Event ID: " + event_id + " / Changes: " + (changes or "none")
+        action = await self.action_service.create_action(
+            user_id=self.user_id,
+            action_type=ActionType.CREATE_CALENDAR_EVENT,
+            payload=payload,
+            description=desc,
+        )
+        return {"status": "pending_approval", "action_id": action.id, "message": "Calendar update queued for approval."}
+
+    async def _queue_delete_calendar_event(self, event_id: str, title: str | None = None) -> dict:
+        payload = {"event_id": event_id, "action": "delete"}
+        desc = "Delete Calendar Event / Title: " + (title or "Unknown") + " / Event ID: " + event_id
+        action = await self.action_service.create_action(
+            user_id=self.user_id,
+            action_type=ActionType.CREATE_CALENDAR_EVENT,
+            payload=payload,
+            description=desc,
+        )
+        return {"status": "pending_approval", "action_id": action.id, "message": "Calendar deletion queued for approval."}
+
+    async def _find_calendar_events(self, query: str, max_results: int = 10) -> dict:
+        from app.integrations.google_calendar import find_events
+        import asyncio
+        max_results = int(max_results)
+        events = await asyncio.get_event_loop().run_in_executor(None, lambda: find_events(query=query, max_results=max_results))
+        simplified = [{"id": e.get("id"), "title": e.get("summary"), "start": (e.get("start") or {}).get("dateTime") or (e.get("start") or {}).get("date"), "location": e.get("location", "")} for e in events]
+        return {"query": query, "count": len(simplified), "events": simplified}
+
+
+    async def _get_recent_emails(self, limit: int = 10, source: str | None = None) -> dict:
+        """Query already-stored emails from DB — fast, no IMAP/Gmail call needed."""
+        from sqlalchemy import select
+        from app.models.email import Email
+        limit = int(limit)
+
+        stmt = select(Email).order_by(Email.received_at.desc()).limit(limit)
+        if source:
+            stmt = stmt.where(Email.source == source)
+
+        result = await self.db.execute(stmt)
+        emails = list(result.scalars().all())
+
+        return {
+            "count": len(emails),
+            "emails": [
+                {
+                    "id":           e.id,
+                    "source":       e.source,
+                    "subject":      e.subject,
+                    "sender":       e.sender,
+                    "received_at":  str(e.received_at),
+                    "snippet":      (e.body_text or "")[:300],
+                    "summary":      e.summary,
+                    "is_actionable": e.is_actionable,
+                    "is_analyzed":  e.is_analyzed,
+                }
+                for e in emails
+            ],
+        }
 
 
     async def _get_agent_status(self) -> dict:

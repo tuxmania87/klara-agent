@@ -17,129 +17,130 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 
 # ── Tool declarations (schema Gemini understands) ─────────────────────────────
 
+
 TOOL_DECLARATIONS = [
     FunctionDeclaration(
         name="read_gmail_messages",
         description="Read unread emails from Gmail inbox.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of emails to fetch. Default 10.",
-                }
-            },
-        },
+        parameters={"type": "object", "properties": {
+            "max_results": {"type": "integer", "description": "Max emails to fetch. Default 10."},
+        }},
     ),
     FunctionDeclaration(
         name="read_mailcow_messages",
-        description="Read unread emails from the Mailcow mailbox.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of emails to fetch. Default 20.",
-                }
-            },
-        },
+        description="Read unread emails from the Mailcow mailbox via IMAP.",
+        parameters={"type": "object", "properties": {
+            "limit": {"type": "integer", "description": "Max emails to fetch. Default 20."},
+        }},
+    ),
+    FunctionDeclaration(
+        name="get_recent_emails",
+        description="Query already-fetched emails from the local database. Use this when the user asks what emails came in or to review recent emails — much faster than re-fetching from Gmail/Mailcow. Use read_gmail_messages or read_mailcow_messages only to actively fetch new ones.",
+        parameters={"type": "object", "properties": {
+            "limit":  {"type": "integer", "description": "Number of recent emails, default 10."},
+            "source": {"type": "string",  "description": "Optional filter: gmail or mailcow."},
+        }},
     ),
     FunctionDeclaration(
         name="send_mailcow_email",
-        description=(
-            "Queue an email to be sent via Mailcow. "
-            "IMPORTANT: This creates a pending action that requires user approval before sending."
-        ),
+        description="Queue an email to be sent via SMTP. IMPORTANT: requires user approval before sending.",
         parameters={
             "type": "object",
             "properties": {
-                "to": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of recipient email addresses.",
-                },
-                "subject": {"type": "string", "description": "Email subject."},
-                "body_text": {"type": "string", "description": "Plain-text email body."},
-                "body_html": {"type": "string", "description": "Optional HTML email body."},
-                "cc": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Optional CC recipients.",
-                },
+                "to":        {"type": "array", "items": {"type": "string"}, "description": "Recipient addresses."},
+                "subject":   {"type": "string", "description": "Subject line."},
+                "body_text": {"type": "string", "description": "Plain-text body."},
+                "body_html": {"type": "string", "description": "Optional HTML body."},
+                "cc":        {"type": "array", "items": {"type": "string"}, "description": "Optional CC."},
+                "from_addr": {"type": "string", "description": "Optional sender override e.g. Klara <klara@domain.de>."},
             },
             "required": ["to", "subject", "body_text"],
         },
     ),
     FunctionDeclaration(
         name="create_google_calendar_event",
-        description=(
-            "Queue a Google Calendar event for creation. "
-            "IMPORTANT: This creates a pending action that requires user approval."
-        ),
+        description="Queue a Google Calendar event for creation. Requires user approval.",
         parameters={
             "type": "object",
             "properties": {
-                "title": {"type": "string", "description": "Event title."},
-                "start_iso": {
-                    "type": "string",
-                    "description": "Start datetime in ISO 8601 format.",
-                },
-                "end_iso": {
-                    "type": "string",
-                    "description": "End datetime in ISO 8601 format.",
-                },
-                "description": {"type": "string", "description": "Event description."},
-                "location": {"type": "string", "description": "Event location."},
+                "title":       {"type": "string"},
+                "start_iso":   {"type": "string", "description": "Start datetime ISO 8601."},
+                "end_iso":     {"type": "string", "description": "End datetime ISO 8601."},
+                "description": {"type": "string"},
+                "location":    {"type": "string"},
             },
             "required": ["title", "start_iso", "end_iso"],
         },
     ),
     FunctionDeclaration(
-        name="list_google_calendar_events",
-        description="List upcoming events from Google Calendar.",
+        name="update_google_calendar_event",
+        description="Queue an update to an existing Google Calendar event. Requires user approval. Use find_google_calendar_events first to get the event ID.",
         parameters={
             "type": "object",
             "properties": {
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum events to return. Default 10.",
-                }
+                "event_id":    {"type": "string", "description": "Google Calendar event ID."},
+                "title":       {"type": "string", "description": "New title."},
+                "start_iso":   {"type": "string", "description": "New start ISO 8601."},
+                "end_iso":     {"type": "string", "description": "New end ISO 8601."},
+                "description": {"type": "string", "description": "New description."},
+                "location":    {"type": "string", "description": "New location."},
             },
+            "required": ["event_id"],
         },
+    ),
+    FunctionDeclaration(
+        name="delete_google_calendar_event",
+        description="Queue deletion of a Google Calendar event. Requires user approval.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "description": "Event ID to delete."},
+                "title":    {"type": "string", "description": "Event title for confirmation display."},
+            },
+            "required": ["event_id"],
+        },
+    ),
+    FunctionDeclaration(
+        name="find_google_calendar_events",
+        description="Search Google Calendar events by keyword. Use this to find event IDs before updating or deleting.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query":       {"type": "string", "description": "Search text."},
+                "max_results": {"type": "integer", "description": "Max results, default 10."},
+            },
+            "required": ["query"],
+        },
+    ),
+    FunctionDeclaration(
+        name="list_google_calendar_events",
+        description="List upcoming events from Google Calendar.",
+        parameters={"type": "object", "properties": {
+            "max_results": {"type": "integer", "description": "Max events to return. Default 10."},
+        }},
     ),
     FunctionDeclaration(
         name="summarize_email",
         description="Summarize a specific email by its database ID.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "email_id": {
-                    "type": "integer",
-                    "description": "Database ID of the email to summarize.",
-                }
-            },
-            "required": ["email_id"],
-        },
+        parameters={"type": "object", "properties": {
+            "email_id": {"type": "integer", "description": "Database ID of the email."},
+        }, "required": ["email_id"]},
     ),
     FunctionDeclaration(
         name="classify_email_actionability",
         description="Classify which emails are actionable and extract action items.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "email_ids": {
-                    "type": "array",
-                    "items": {"type": "integer"},
-                    "description": "List of email database IDs to classify.",
-                }
-            },
-            "required": ["email_ids"],
-        },
+        parameters={"type": "object", "properties": {
+            "email_ids": {"type": "array", "items": {"type": "integer"}, "description": "List of email DB IDs."},
+        }, "required": ["email_ids"]},
+    ),
+    FunctionDeclaration(
+        name="get_agent_status",
+        description="Get current agent status: polling schedule, active integrations, email/action counts.",
+        parameters={"type": "object", "properties": {}},
     ),
 ]
 
 GEMINI_TOOLS = [Tool(function_declarations=TOOL_DECLARATIONS)]
-
 
 class GeminiAgent:
     """Stateless Gemini reasoning agent. State is passed in each call."""
