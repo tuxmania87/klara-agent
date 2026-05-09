@@ -375,7 +375,7 @@ class GeminiAgent:
                 tool_calls.append({"name": fn.name, "args": dict(fn.args)})
                 logger.info(
                     "gemini.tool_call",
-                    extra={"tool": fn.name, "args": dict(fn.args)},
+                    extra={"tool": fn.name, "tool_args": dict(fn.args)},
                 )
             elif part.text:
                 text_parts.append(part.text)

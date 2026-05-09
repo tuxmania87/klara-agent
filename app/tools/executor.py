@@ -43,7 +43,7 @@ class ToolExecutor:
     async def execute(self, tool_name: str, args: dict[str, Any]) -> Any:
         """Execute a tool call and return the result."""
         args = self._sanitize_args(args)
-        logger.info("tool.execute", extra={"tool": tool_name, "args": args})
+        logger.info("tool.execute", extra={"tool": tool_name, "tool_args": args})
 
         dispatch = {
             "read_gmail_messages": self._read_gmail,
