@@ -162,18 +162,6 @@ class MailcowIMAPClient:
         for seq in seq_list:
             try:
                 resp = await client.fetch(seq, "(UID BODY.PEEK[])")
-                logger.info(
-                    "mailcow.imap.fetch_raw",
-                    extra={
-                        "seq": str(seq),
-                        "result": resp.result,
-                        "lines_count": len(resp.lines),
-                        "lines_preview": str([
-                            (type(l).__name__, len(l) if isinstance(l, bytes) else str(l)[:60])
-                            for l in resp.lines[:5]
-                        ]),
-                    },
-                )
                 if resp.result != "OK":
                     continue
 
@@ -185,8 +173,6 @@ class MailcowIMAPClient:
                         m = re.search(rb"UID (\d+)", line)
                         if m:
                             uid_str = m.group(1).decode()
-                        # Email-Body: muss Return-To oder Received oder MIME enthalten
-                        # len > 100 ist zu unspezifisch — prüfe auf typische Mail-Header
                         if len(line) > 20 and (
                             b"Return-Path" in line or b"Received" in line
                             or b"From:" in line or b"Subject:" in line
@@ -198,10 +184,7 @@ class MailcowIMAPClient:
                         raw_email = bytes(line)
 
                 if not raw_email:
-                    logger.warning(
-                        "mailcow.imap.no_body",
-                        extra={"seq": str(seq), "lines": str(resp.lines)[:200]},
-                    )
+                    logger.warning("mailcow.imap.no_body", extra={"seq": str(seq)})
                     continue
 
                 msg = email.message_from_bytes(raw_email)
