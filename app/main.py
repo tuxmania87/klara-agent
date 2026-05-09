@@ -16,6 +16,7 @@ setup_logging()
 from app.workers.email_poller import EmailPollerWorker
 from app.workers.email_analyzer import EmailAnalyzerWorker
 from app.workers.notifier import NotifierWorker
+from app.workers.reminder_worker import ReminderWorker
 from app.database import init_db
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
         EmailPollerWorker(),
         EmailAnalyzerWorker(),
         NotifierWorker(),
+        ReminderWorker(),
     ]
     tasks = [asyncio.create_task(w.run()) for w in workers]
     logger.info(f"Started {len(tasks)} background workers.")

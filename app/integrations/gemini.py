@@ -196,6 +196,149 @@ TOOL_DECLARATIONS = [
             "required": ["query"],
         },
     ),
+    # ── Triage & Analyse ─────────────────────────────────────────────────────
+    FunctionDeclaration(
+        name="triage_email",
+        description="Analysiert eine Mail tiefgehend: Triage-Label, To-dos, Dringlichkeit, beteiligte Personen, nächster Schritt.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "email_id": {"type": "integer", "description": "DB-ID der E-Mail."},
+            },
+            "required": ["email_id"],
+        },
+    ),
+    FunctionDeclaration(
+        name="triage_inbox",
+        description="Triagiert mehrere Mails auf einmal und gibt eine strukturierte Übersicht zurück. Ideal für morgendliches Briefing.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Anzahl der zu analysierenden Mails, default 10."},
+            },
+        },
+    ),
+    FunctionDeclaration(
+        name="draft_reply",
+        description="Erstellt einen Antwortentwurf für eine Mail in der passenden Tonlage. Sendet NICHT — nur Entwurf.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "email_id": {"type": "integer"},
+                "tone": {"type": "string", "description": "work|authority|school|private|social"},
+            },
+            "required": ["email_id"],
+        },
+    ),
+    # ── Reminders ────────────────────────────────────────────────────────────
+    FunctionDeclaration(
+        name="set_reminder",
+        description="Setzt eine Erinnerung zu einem bestimmten Zeitpunkt. Sybille schickt dann eine Telegram-Nachricht.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "text":            {"type": "string", "description": "Text der Erinnerung."},
+                "remind_at_iso":   {"type": "string", "description": "Zeitpunkt als ISO-8601, z.B. 2026-05-12T09:00:00."},
+                "source_email_id": {"type": "integer", "description": "Optional: Bezug zu einer Mail."},
+            },
+            "required": ["text", "remind_at_iso"],
+        },
+    ),
+    FunctionDeclaration(
+        name="list_reminders",
+        description="Zeigt alle offenen, noch nicht gesendeten Erinnerungen.",
+        parameters={"type": "object", "properties": {}},
+    ),
+    FunctionDeclaration(
+        name="delete_reminder",
+        description="Löscht eine Erinnerung.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "reminder_id": {"type": "integer"},
+            },
+            "required": ["reminder_id"],
+        },
+    ),
+    # ── Cases / Chronologien ─────────────────────────────────────────────────
+    FunctionDeclaration(
+        name="create_case",
+        description="Erstellt einen neuen Fall (z.B. 'Alltours-Reklamation', 'Schulproblem Klasse 3'). Dient als Chronologie.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "title":       {"type": "string"},
+                "description": {"type": "string", "description": "Kurze Beschreibung worum es geht."},
+            },
+            "required": ["title"],
+        },
+    ),
+    FunctionDeclaration(
+        name="list_cases",
+        description="Listet alle laufenden oder abgeschlossenen Fälle.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "description": "open|resolved|waiting — leer = alle."},
+            },
+        },
+    ),
+    FunctionDeclaration(
+        name="get_case",
+        description="Zeigt einen Fall mit vollständiger Chronologie (alle Ereignisse in Zeitreihenfolge).",
+        parameters={
+            "type": "object",
+            "properties": {
+                "case_id": {"type": "integer"},
+            },
+            "required": ["case_id"],
+        },
+    ),
+    FunctionDeclaration(
+        name="add_case_event",
+        description="Fügt einem Fall ein neues Ereignis hinzu (was ist passiert, wer war beteiligt, offene Fragen).",
+        parameters={
+            "type": "object",
+            "properties": {
+                "case_id":        {"type": "integer"},
+                "description":    {"type": "string", "description": "Was ist passiert?"},
+                "happened_at_iso":{"type": "string", "description": "Zeitpunkt ISO-8601, leer = jetzt."},
+                "source":         {"type": "string", "description": "email|telegram|manual"},
+                "involved":       {"type": "string", "description": "Beteiligte Personen/Organisationen."},
+                "open_questions": {"type": "string", "description": "Noch offene Fragen."},
+            },
+            "required": ["case_id", "description"],
+        },
+    ),
+    FunctionDeclaration(
+        name="update_case_status",
+        description="Aktualisiert Status und nächsten Schritt eines Falls.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "case_id":   {"type": "integer"},
+                "status":    {"type": "string", "description": "open|resolved|waiting"},
+                "next_step": {"type": "string", "description": "Konkreter nächster Schritt."},
+            },
+            "required": ["case_id", "status"],
+        },
+    ),
+    # ── Briefing ─────────────────────────────────────────────────────────────
+    FunctionDeclaration(
+        name="daily_briefing",
+        description="Erstellt ein Tagesbriefing: Kalender heute, wichtige Mails, offene To-dos, fällige Reminders, Top-3-Prioritäten.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "energy_level": {"type": "integer", "description": "Energielevel 1-10, beeinflusst die Planung. Optional."},
+            },
+        },
+    ),
+    FunctionDeclaration(
+        name="evening_review",
+        description="Abendreview: Was ist offen? Was sollte morgen zuerst? Was kann warten?",
+        parameters={"type": "object", "properties": {}},
+    ),
 ]
 
 GEMINI_TOOLS = [Tool(function_declarations=TOOL_DECLARATIONS)]

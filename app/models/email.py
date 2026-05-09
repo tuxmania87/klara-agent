@@ -23,4 +23,14 @@ class Email(Base):
     actionable_items: Mapped[str | None] = mapped_column(Text)  # JSON list
     is_analyzed: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Triage
+    triage_label: Mapped[str | None] = mapped_column(String(32))
+    triage_reason: Mapped[str | None] = mapped_column(Text)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    involved_people: Mapped[str | None] = mapped_column(Text)   # JSON
+    draft_reply: Mapped[str | None] = mapped_column(Text)
+    tone: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+# ── Triage (ergänzt durch email_service.triage_email) ────────────────────────
+# Labels: urgent | important | info | later | needs_reply |
+#         needs_appointment | needs_followup | needs_clarification

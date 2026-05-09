@@ -13,6 +13,8 @@ from app.models.pending_action import ActionType, ActionStatus
 from app.services.email_service import EmailService
 from app.services.action_service import ActionService
 from app.services.note_service import NoteService
+from app.services.reminder_service import ReminderService
+from app.services.case_service import CaseService
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,8 @@ class ToolExecutor:
         self.email_service = EmailService(db)
         self.action_service = ActionService(db)
         self.note_service = NoteService(db)
+        self.reminder_service = ReminderService(db)
+        self.case_service = CaseService(db)
 
     @staticmethod
     def _sanitize_args(args: Any) -> Any:
@@ -59,6 +63,23 @@ class ToolExecutor:
             "search_notes": self._search_notes,
             "delete_note":  self._delete_note,
             "google_search": self._google_search,
+            # Triage & Analyse
+            "triage_email":  self._triage_email,
+            "triage_inbox":  self._triage_inbox,
+            "draft_reply":   self._draft_reply,
+            # Reminders
+            "set_reminder":    self._set_reminder,
+            "list_reminders":  self._list_reminders,
+            "delete_reminder": self._delete_reminder,
+            # Cases
+            "create_case":       self._create_case,
+            "list_cases":        self._list_cases,
+            "get_case":          self._get_case,
+            "add_case_event":    self._add_case_event,
+            "update_case_status":self._update_case_status,
+            # Briefing
+            "daily_briefing":  self._daily_briefing,
+            "evening_review":  self._evening_review,
         }
 
         handler = dispatch.get(tool_name)
@@ -460,3 +481,306 @@ class ToolExecutor:
         from app.integrations.google_search import google_search
         results = await google_search(query=query, num_results=int(num_results))
         return {"query": query, "count": len(results), "results": results}
+
+    # ── Triage & Analyse ──────────────────────────────────────────────────────
+
+    async def _triage_email(self, email_id: int) -> dict:
+        email = await self.email_service.get_email(int(email_id))
+        if not email:
+            return {"error": f"E-Mail {email_id} nicht gefunden."}
+        result = await self.email_service.triage_email(email)
+        result["email_id"] = email_id
+        result["subject"] = email.subject
+        result["sender"] = email.sender
+        return result
+
+    async def _triage_inbox(self, limit: int = 10) -> dict:
+        from sqlalchemy import select
+        from app.models.email import Email
+        limit = int(limit)
+        result = await self.db.execute(
+            select(Email).order_by(Email.received_at.desc()).limit(limit)
+        )
+        emails = list(result.scalars().all())
+        summaries = []
+        label_counts: dict[str, int] = {}
+        for email in emails:
+            triage = await self.email_service.triage_email(email)
+            label = triage.get("triage_label", "info")
+            label_counts[label] = label_counts.get(label, 0) + 1
+            summaries.append({
+                "email_id":     email.id,
+                "subject":      email.subject,
+                "sender":       email.sender,
+                "triage_label": label,
+                "triage_reason":triage.get("triage_reason"),
+                "what_to_do":   triage.get("what_to_do"),
+                "by_when":      triage.get("by_when"),
+                "how_critical": triage.get("how_critical"),
+                "next_step":    triage.get("next_step"),
+            })
+        return {
+            "total": len(summaries),
+            "label_summary": label_counts,
+            "emails": summaries,
+        }
+
+    async def _draft_reply(self, email_id: int, tone: str | None = None) -> dict:
+        email = await self.email_service.get_email(int(email_id))
+        if not email:
+            return {"error": f"E-Mail {email_id} nicht gefunden."}
+        draft = await self.email_service.draft_reply(email, tone=tone)
+        return {
+            "email_id": email_id,
+            "subject":  email.subject,
+            "tone":     tone or email.tone or "work",
+            "draft":    draft,
+            "note":     "Entwurf gespeichert. Zum Senden: send_mailcow_email mit diesem Text verwenden — erfordert Bestätigung.",
+        }
+
+    # ── Reminders ─────────────────────────────────────────────────────────────
+
+    async def _set_reminder(self, text: str, remind_at_iso: str, source_email_id: int | None = None) -> dict:
+        from datetime import datetime, timezone
+        try:
+            remind_at = datetime.fromisoformat(remind_at_iso)
+            if remind_at.tzinfo is None:
+                remind_at = remind_at.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return {"error": f"Ungültiges Datum: {remind_at_iso}"}
+        reminder = await self.reminder_service.create(
+            user_id=self.user_id,
+            text=text,
+            remind_at=remind_at,
+            source_email_id=int(source_email_id) if source_email_id else None,
+        )
+        return {
+            "status": "created",
+            "reminder_id": reminder.id,
+            "text": text,
+            "remind_at": str(remind_at),
+        }
+
+    async def _list_reminders(self) -> dict:
+        reminders = await self.reminder_service.get_upcoming(self.user_id, limit=20)
+        return {
+            "count": len(reminders),
+            "reminders": [
+                {
+                    "id": r.id,
+                    "text": r.text,
+                    "remind_at": str(r.remind_at),
+                    "source_email_id": r.source_email_id,
+                }
+                for r in reminders
+            ],
+        }
+
+    async def _delete_reminder(self, reminder_id: int) -> dict:
+        deleted = await self.reminder_service.delete(self.user_id, int(reminder_id))
+        return {"status": "deleted" if deleted else "not_found", "reminder_id": reminder_id}
+
+    # ── Cases ─────────────────────────────────────────────────────────────────
+
+    async def _create_case(self, title: str, description: str | None = None) -> dict:
+        case = await self.case_service.create(self.user_id, title=title, description=description)
+        return {"status": "created", "case_id": case.id, "title": case.title}
+
+    async def _list_cases(self, status: str | None = None) -> dict:
+        cases = await self.case_service.list(self.user_id, status=status or None)
+        return {
+            "count": len(cases),
+            "cases": [
+                {
+                    "id": c.id,
+                    "title": c.title,
+                    "status": c.status,
+                    "next_step": c.next_step,
+                    "updated_at": str(c.updated_at),
+                }
+                for c in cases
+            ],
+        }
+
+    async def _get_case(self, case_id: int) -> dict:
+        case = await self.case_service.get_with_events(self.user_id, int(case_id))
+        if not case:
+            return {"error": f"Fall {case_id} nicht gefunden."}
+        events = await self.case_service.get_events(int(case_id))
+        return {
+            "id": case.id,
+            "title": case.title,
+            "description": case.description,
+            "status": case.status,
+            "next_step": case.next_step,
+            "events": [
+                {
+                    "id": e.id,
+                    "happened_at": str(e.happened_at),
+                    "description": e.description,
+                    "source": e.source,
+                    "involved": e.involved,
+                    "open_questions": e.open_questions,
+                }
+                for e in events
+            ],
+        }
+
+    async def _add_case_event(
+        self,
+        case_id: int,
+        description: str,
+        happened_at_iso: str | None = None,
+        source: str | None = None,
+        involved: str | None = None,
+        open_questions: str | None = None,
+    ) -> dict:
+        from datetime import datetime, timezone
+        happened_at = None
+        if happened_at_iso:
+            try:
+                happened_at = datetime.fromisoformat(happened_at_iso)
+                if happened_at.tzinfo is None:
+                    happened_at = happened_at.replace(tzinfo=timezone.utc)
+            except ValueError:
+                pass
+        event = await self.case_service.add_event(
+            case_id=int(case_id),
+            description=description,
+            happened_at=happened_at,
+            source=source,
+            involved=involved,
+            open_questions=open_questions,
+        )
+        return {"status": "added", "event_id": event.id, "case_id": case_id}
+
+    async def _update_case_status(self, case_id: int, status: str, next_step: str | None = None) -> dict:
+        case = await self.case_service.update_status(self.user_id, int(case_id), status, next_step)
+        if not case:
+            return {"error": f"Fall {case_id} nicht gefunden."}
+        return {"status": "updated", "case_id": case_id, "new_status": status, "next_step": next_step}
+
+    # ── Briefing ──────────────────────────────────────────────────────────────
+
+    async def _daily_briefing(self, energy_level: int | None = None) -> dict:
+        """Sammelt alle relevanten Daten für ein Tagesbriefing."""
+        from sqlalchemy import select, func as sqlfunc
+        from app.models.email import Email
+        from app.models.note import Note
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+
+        # Kalender heute
+        from app.integrations.google_calendar import list_events
+        import asyncio
+        try:
+            events = await asyncio.get_event_loop().run_in_executor(None, lambda: list_events(max_results=10))
+            today_events = [
+                {"title": e.get("summary"), "start": (e.get("start") or {}).get("dateTime") or (e.get("start") or {}).get("date")}
+                for e in events
+            ]
+        except Exception:
+            today_events = []
+
+        # Ungelesene / nicht triagierte Mails
+        mail_result = await self.db.execute(
+            select(Email)
+            .where(Email.triage_label.in_(["urgent", "needs_reply", "needs_appointment", "needs_followup"]))
+            .order_by(Email.received_at.desc())
+            .limit(10)
+        )
+        priority_mails = list(mail_result.scalars().all())
+
+        # Offene Reminders
+        reminders = await self.reminder_service.get_upcoming(self.user_id, limit=10)
+        due_today = [r for r in reminders if r.remind_at.date() <= now.date()]
+
+        # Offene Notizen mit Due-Date
+        notes_result = await self.db.execute(
+            select(Note)
+            .where(Note.user_id == self.user_id)
+            .where(Note.status == "open")
+            .where(Note.due_date <= today_end)
+            .order_by(Note.due_date)
+            .limit(10)
+        )
+        due_notes = list(notes_result.scalars().all())
+
+        # Offene Fälle
+        open_cases = await self.case_service.list(self.user_id, status="open", limit=5)
+
+        return {
+            "date": now.strftime("%A, %d.%m.%Y"),
+            "energy_level": energy_level,
+            "calendar_today": today_events,
+            "priority_mails": [
+                {"id": m.id, "subject": m.subject, "sender": m.sender,
+                 "triage_label": m.triage_label, "next_step": m.triage_reason}
+                for m in priority_mails
+            ],
+            "reminders_due_today": [
+                {"id": r.id, "text": r.text, "remind_at": str(r.remind_at)}
+                for r in due_today
+            ],
+            "notes_due": [
+                {"id": n.id, "title": n.title, "due_date": str(n.due_date)}
+                for n in due_notes
+            ],
+            "open_cases": [
+                {"id": c.id, "title": c.title, "next_step": c.next_step}
+                for c in open_cases
+            ],
+        }
+
+    async def _evening_review(self) -> dict:
+        """Was ist heute offen geblieben? Was morgen?"""
+        from sqlalchemy import select
+        from app.models.email import Email
+        from app.models.note import Note
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        tomorrow_end = (now + timedelta(days=1)).replace(hour=23, minute=59)
+
+        # Mails die noch Aktion brauchen
+        mail_result = await self.db.execute(
+            select(Email)
+            .where(Email.triage_label.in_(["urgent", "needs_reply", "needs_followup"]))
+            .where(Email.is_read == False)  # noqa
+            .order_by(Email.received_at.desc())
+            .limit(10)
+        )
+        open_mails = list(mail_result.scalars().all())
+
+        # Reminders bis morgen
+        reminders = await self.reminder_service.get_upcoming(self.user_id, limit=10)
+        tomorrow_reminders = [r for r in reminders if r.remind_at <= tomorrow_end]
+
+        # Offene Notizen / To-dos
+        notes_result = await self.db.execute(
+            select(Note)
+            .where(Note.user_id == self.user_id)
+            .where(Note.status == "open")
+            .where(Note.category == "task")
+            .order_by(Note.due_date.asc().nulls_last())
+            .limit(10)
+        )
+        open_tasks = list(notes_result.scalars().all())
+
+        return {
+            "open_mails_needing_action": [
+                {"id": m.id, "subject": m.subject, "triage_label": m.triage_label}
+                for m in open_mails
+            ],
+            "reminders_until_tomorrow": [
+                {"id": r.id, "text": r.text, "remind_at": str(r.remind_at)}
+                for r in tomorrow_reminders
+            ],
+            "open_tasks": [
+                {"id": n.id, "title": n.title or n.content[:80], "due_date": str(n.due_date) if n.due_date else None}
+                for n in open_tasks
+            ],
+        }

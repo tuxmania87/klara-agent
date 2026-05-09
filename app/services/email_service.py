@@ -147,3 +147,86 @@ class EmailService:
             select(Email).where(Email.is_analyzed == False).limit(limit)  # noqa
         )
         return list(result.scalars().all())
+
+    # ── Triage ────────────────────────────────────────────────────────────────
+
+    async def triage_email(self, email: Email) -> dict:
+        """
+        Ordnet eine Mail ein und gibt ein strukturiertes Ergebnis zurück.
+        Schreibt triage_label, triage_reason, due_date, involved_people auf die Email.
+        Labels: urgent | important | info | later | needs_reply |
+                needs_appointment | needs_followup | needs_clarification
+        """
+        prompt = (
+            "Analysiere diese E-Mail und gib ein JSON-Objekt zurück mit:\n"
+            "- triage_label: eines von urgent|important|info|later|needs_reply|needs_appointment|needs_followup|needs_clarification\n"
+            "- triage_reason: kurze Begründung (1 Satz)\n"
+            "- due_date: ISO-8601-Datum falls eine Frist erkennbar ist, sonst null\n"
+            "- involved_people: Liste von Namen/Organisationen die relevant sind\n"
+            "- what_is_it: Was geht es? (1 Satz)\n"
+            "- what_to_do: Was muss ich tun? (1-3 Punkte, oder null)\n"
+            "- by_when: Bis wann? (Text oder null)\n"
+            "- how_critical: niedrig|mittel|hoch\n"
+            "- next_step: konkret nächster sinnvoller Schritt (1 Satz)\n"
+            "- tone_suggestion: work|authority|school|private|social (passende Antworttechnik)\n\n"
+            f"Betreff: {email.subject}\n"
+            f"Von: {email.sender}\n"
+            f"Text:\n{(email.body_text or '')[:3000]}\n\n"
+            "Antworte NUR mit validem JSON."
+        )
+        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        response = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: model.generate_content(prompt)
+        )
+        raw = response.text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError:
+            result = {"triage_label": "info", "triage_reason": "Konnte nicht analysiert werden."}
+
+        email.triage_label = result.get("triage_label")
+        email.triage_reason = result.get("triage_reason")
+        email.involved_people = json.dumps(result.get("involved_people", []))
+        email.tone = result.get("tone_suggestion")
+        if result.get("due_date"):
+            try:
+                from datetime import timezone
+                email.due_date = datetime.fromisoformat(result["due_date"]).replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+        email.is_analyzed = True
+        await self.db.commit()
+        return result
+
+    async def draft_reply(self, email: Email, tone: str | None = None) -> str:
+        """
+        Erstellt einen Antwortentwurf in der passenden Tonlage.
+        tone: work|authority|school|private|social
+        """
+        tone = tone or email.tone or "work"
+        tone_instructions = {
+            "work":      "kurz, freundlich, professionell",
+            "authority": "sachlich, bestimmt, strukturiert",
+            "school":    "ruhig, kooperativ, lösungsorientiert",
+            "private":   "warm und empathisch",
+            "social":    "klar, direkt, gerne etwas persönlich",
+        }.get(tone, "freundlich und professionell")
+
+        prompt = (
+            f"Schreibe einen Antwortentwurf auf diese E-Mail.\n"
+            f"Tonlage: {tone_instructions}\n"
+            f"Wichtig: Nur den Entwurf, keine Erklärungen. Kein Betreff.\n\n"
+            f"Original-Betreff: {email.subject}\n"
+            f"Von: {email.sender}\n"
+            f"Text:\n{(email.body_text or '')[:2000]}"
+        )
+        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        response = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: model.generate_content(prompt)
+        )
+        draft = response.text.strip()
+        email.draft_reply = draft
+        await self.db.commit()
+        return draft
