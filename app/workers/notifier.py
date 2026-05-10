@@ -22,6 +22,9 @@ NOTIFY_LABELS = {"urgent", "needs_reply", "needs_appointment", "needs_followup"}
 
 # Mails die älter als X Stunden sind beim ersten Import still markieren
 MAX_AGE_FOR_NOTIFICATION_HOURS = 24
+# Nur Mails die in den letzten N Stunden importiert wurden können benachrichtigen
+# Verhindert dass der Agent beim Suchen alter Mails den Notifier triggert
+NOTIFY_ONLY_IMPORTED_WITHIN_HOURS = 2
 
 
 class NotifierWorker(BaseWorker):
@@ -30,9 +33,12 @@ class NotifierWorker(BaseWorker):
 
     async def tick(self) -> None:
         async with AsyncSessionLocal() as db:
+            cutoff_import = now - timedelta(hours=NOTIFY_ONLY_IMPORTED_WITHIN_HOURS)
+
             result = await db.execute(
                 select(Email)
                 .where(Email.is_read == False)  # noqa: E712
+                .where(Email.created_at >= cutoff_import)   # nur frisch importierte
                 .order_by(Email.received_at.desc())
                 .limit(20)
             )

@@ -370,6 +370,13 @@ class ToolExecutor:
         result = await self.db.execute(stmt)
         emails = list(result.scalars().all())
 
+        # Mails die der Agent explizit abruft als notified markieren —
+        # verhindert dass der Notifier sie danach nochmal in den Chat pumpt
+        for e in emails:
+            if not e.is_read:
+                e.is_read = True
+        await self.db.commit()
+
         return {
             "count": len(emails),
             "emails": [
@@ -383,6 +390,7 @@ class ToolExecutor:
                     "summary":      e.summary,
                     "is_actionable": e.is_actionable,
                     "is_analyzed":  e.is_analyzed,
+                    "triage_label": e.triage_label,
                 }
                 for e in emails
             ],
