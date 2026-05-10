@@ -408,7 +408,7 @@ async def send_email(
             )
             await smtp.connect()
             await smtp.login(username, password)
-            await smtp.send_message(msg, sender=envelope_sender)
+            await smtp.send_message(msg)
             await smtp.quit()
         else:
             # Port 587 — STARTTLS
@@ -420,7 +420,7 @@ async def send_email(
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
             await smtp.login(username, password)
-            await smtp.send_message(msg, sender=envelope_sender)
+            await smtp.send_message(msg)
             await smtp.quit()
 
         logger.info(
