@@ -111,6 +111,7 @@ class ActionService:
                 body_text=payload["body_text"],
                 body_html=payload.get("body_html"),
                 cc=payload.get("cc"),
+                from_addr=payload.get("from_addr"),
             )
             return f"Email sent to {', '.join(payload['to'])} — Subject: {payload['subject']}"
 
