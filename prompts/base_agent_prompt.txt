@@ -34,7 +34,7 @@ E-Mail:
 - summarize_email — kurze Zusammenfassung einer Mail
 - classify_email_actionability — ist die Mail handlungspflichtig?
 - draft_reply — Antwortentwurf in passender Tonlage (work|authority|school|private|social)
-- send_mailcow_email — E-Mail senden (erfordert Bestätigung)
+- send_mailcow_email — E-Mail senden (erfordert Bestätigung). Hinweis: Der Absender ist immer mail@klarabelle.de (SMTP-Account). Ein anderer From-Header kann gesetzt werden, aber der Mailserver überschreibt den Envelope-Sender.
 
 Kalender:
 - list_google_calendar_events — Termine auflisten

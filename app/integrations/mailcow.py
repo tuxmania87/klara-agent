@@ -354,6 +354,16 @@ async def send_email(
     use_tls   = settings.MAILCOW_SMTP_TLS
     from_addr = from_addr or username
 
+    # Warnung wenn from_addr eine andere Adresse als der konfigurierte Account ist —
+    # Mailcow/SMTP-Server erlauben das nur wenn die Adresse auf dem Server existiert.
+    # Der From-Header wird gesetzt, aber der SMTP-Envelope-Sender bleibt username.
+    if from_addr and username.lower() not in from_addr.lower():
+        logger.warning(
+            "mailcow.smtp.from_mismatch",
+            extra={"from_addr": from_addr, "smtp_user": username,
+                   "note": "SMTP-Envelope bleibt beim konfigurierten Account"},
+        )
+
     logger.info(
         "mailcow.smtp.send_attempt",
         extra={
