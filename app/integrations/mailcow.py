@@ -366,13 +366,12 @@ async def send_email(
     logger.info(
         "mailcow.smtp.send_attempt",
         extra={
-            "host":         host,
-            "port":         port,
-            "username":     username,
-            "use_tls":      use_tls,
-            "to":           to,
-            "subject":      subject,
-            "display_from": display_from,
+            "host":     host,
+            "port":     port,
+            "username": username,
+            "use_tls":  use_tls,
+            "to":       to,
+            "subject":  subject,
         },
     )
 
@@ -408,16 +407,12 @@ async def send_email(
         tls_context.check_hostname = True
         tls_context.verify_mode = ssl.CERT_REQUIRED
 
-        # HELO/EHLO-Hostname: konfigurierter Wert > from_domain > SMTP-Host
-        ehlo_hostname = settings.MAILCOW_SMTP_EHLO_HOSTNAME or from_domain or host
-
         if use_tls:
             smtp = aiosmtplib.SMTP(
                 hostname=host,
                 port=port,
                 use_tls=True,
                 tls_context=tls_context,
-                local_hostname=ehlo_hostname,
             )
             await smtp.connect()
             await smtp.login(username, password)
@@ -428,7 +423,6 @@ async def send_email(
                 hostname=host,
                 port=port,
                 use_tls=False,
-                local_hostname=ehlo_hostname,
             )
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
