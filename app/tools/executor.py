@@ -57,6 +57,7 @@ class ToolExecutor:
             "classify_email_actionability": self._classify_emails,
             "get_agent_status": self._get_agent_status,
             "get_recent_emails": self._get_recent_emails,
+            "search_mailcow_messages": self._search_mailcow_messages,
             "update_google_calendar_event": self._queue_update_calendar_event,
             "delete_google_calendar_event": self._queue_delete_calendar_event,
             "find_google_calendar_events":  self._find_calendar_events,
@@ -401,6 +402,26 @@ class ToolExecutor:
                 for e in emails
             ],
         }
+
+    async def _search_mailcow_messages(
+        self,
+        sender: str | None = None,
+        subject: str | None = None,
+        body_keyword: str | None = None,
+        limit: int = 10,
+    ) -> dict:
+        """Direkte IMAP-Suche — findet auch Mails die nicht in der DB sind."""
+        from app.integrations.mailcow import mailcow_imap_client
+        results = await mailcow_imap_client.search_messages(
+            sender=sender, subject=subject, body_keyword=body_keyword, limit=int(limit)
+        )
+        if not results:
+            return {
+                "count": 0,
+                "message": "Keine Mails gefunden. Mögliche Ursachen: falscher Absender/Betreff, Mail in anderem Ordner, oder Mailbox leer.",
+                "emails": [],
+            }
+        return {"count": len(results), "emails": results}
 
 
     async def _get_agent_status(self) -> dict:

@@ -230,6 +230,104 @@ class MailcowIMAPClient:
         await client.logout()
         logger.info("mailcow.imap.mark_read", extra={"uid": uid})
 
+    async def search_messages(
+        self,
+        sender: str | None = None,
+        subject: str | None = None,
+        body_keyword: str | None = None,
+        folder: str = "INBOX",
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Sucht direkt per IMAP-SEARCH — findet auch ältere Mails die nicht in der DB sind.
+        """
+        client = await self._connect()
+        resp = await client.select(folder)
+        if resp.result != "OK":
+            await client.logout()
+            return []
+
+        criteria_parts = []
+        if sender:
+            criteria_parts.append(f'FROM "{sender}"')
+        if subject:
+            criteria_parts.append(f'SUBJECT "{subject}"')
+        if body_keyword:
+            criteria_parts.append(f'BODY "{body_keyword}"')
+
+        if not criteria_parts:
+            await client.logout()
+            return []
+
+        criteria = " ".join(criteria_parts)
+        resp = await client.search(criteria)
+        logger.info("mailcow.imap.search", extra={"criteria": criteria, "result": resp.result})
+        if resp.result != "OK":
+            await client.logout()
+            return []
+
+        raw_ids = ""
+        for item in resp.lines:
+            if isinstance(item, bytes):
+                decoded = item.decode(errors="replace").strip()
+                if decoded and all(c.isdigit() or c == " " for c in decoded):
+                    raw_ids = decoded
+                    break
+            elif isinstance(item, str):
+                stripped = item.strip()
+                if stripped and all(c.isdigit() or c == " " for c in stripped):
+                    raw_ids = stripped
+                    break
+
+        seq_list = [u for u in raw_ids.strip().split() if u.strip().isdigit()]
+        if not seq_list:
+            await client.logout()
+            logger.info("mailcow.imap.search_empty", extra={"criteria": criteria})
+            return []
+
+        seq_list = seq_list[-limit:]
+        messages = []
+
+        for seq in seq_list:
+            try:
+                resp = await client.fetch(seq, "(UID BODY.PEEK[])")
+                if resp.result != "OK":
+                    continue
+                raw_email = None
+                uid_str = str(seq.decode() if isinstance(seq, bytes) else seq)
+                for line in resp.lines:
+                    if isinstance(line, bytes):
+                        import re as _re
+                        m = _re.search(rb"UID (\d+)", line)
+                        if m:
+                            uid_str = m.group(1).decode()
+                        if len(line) > 20 and (
+                            b"Return-Path" in line or b"Received" in line
+                            or b"From:" in line or b"Subject:" in line
+                            or b"MIME-Version" in line or b"Content-Type" in line
+                            or b"Message-ID" in line
+                        ):
+                            raw_email = line
+                    elif isinstance(line, (bytearray, memoryview)):
+                        raw_email = bytes(line)
+                if not raw_email:
+                    continue
+                msg = email.message_from_bytes(raw_email)
+                text, _ = _extract_body(msg)
+                messages.append({
+                    "id":        uid_str,
+                    "subject":   _decode_header_value(msg.get("Subject", "")),
+                    "sender":    _decode_header_value(msg.get("From", "")),
+                    "date":      msg.get("Date", ""),
+                    "snippet":   (text or "")[:400],
+                })
+            except Exception as e:
+                logger.error("mailcow.imap.search_fetch_error", extra={"seq": str(seq), "error": str(e)})
+
+        await client.logout()
+        logger.info("mailcow.imap.search_done", extra={"criteria": criteria, "found": len(messages)})
+        return messages
+
 
 mailcow_imap_client = MailcowIMAPClient()
 

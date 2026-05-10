@@ -34,7 +34,15 @@ TOOL_DECLARATIONS = [
         }},
     ),
     FunctionDeclaration(
-        name="get_recent_emails",
+        name="search_mailcow_messages",
+        description="Sucht direkt per IMAP-SEARCH auf dem Mailserver — findet auch ältere Mails die nicht in der lokalen DB sind. Nutze dieses Tool wenn get_recent_emails nichts findet.",
+        parameters={"type": "object", "properties": {
+            "sender":       {"type": "string", "description": "Absender oder Domain, z.B. 'cantor-gymnasium.de' oder 'verena'."},
+            "subject":      {"type": "string", "description": "Betreff-Stichwort, z.B. 'Rechnung' oder 'Turnier'."},
+            "body_keyword": {"type": "string", "description": "Stichwort im Mailtext."},
+            "limit":        {"type": "integer", "description": "Max. Anzahl Ergebnisse, default 10."},
+        }},
+    ),
         description="Sucht in der lokalen Mail-Datenbank. Nutze dieses Tool wenn der User nach Mails fragt — nach Absender, Betreff, Zeitraum oder einfach die letzten N. Schneller als IMAP/Gmail neu abzufragen.",
         parameters={"type": "object", "properties": {
             "limit":   {"type": "integer", "description": "Anzahl Mails, default 10."},
