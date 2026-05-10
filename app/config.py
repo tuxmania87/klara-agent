@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     # ── Zweiter SMTP-Account (z.B. für Alias-Domain mit eigener Mailbox) ─────────
     MAILCOW_EMAIL_ADDRESS_2: str = ""
     MAILCOW_SMTP_PASSWORD_2: str = ""
+    # EHLO-Hostname für SMTP — muss gültiger Domainname sein (kein Docker-Container-Hash)
+    MAILCOW_SMTP_EHLO_HOSTNAME: str = ""  # z.B. "mx.klarabelle.de"
     GDRIVE_CREDENTIALS_JSON: str = "/secrets/gdrive_credentials.json"
     GDRIVE_TOKEN_JSON: str = "/secrets/gdrive_token.json"
     GDRIVE_SCOPES: list[str] = ["https://www.googleapis.com/auth/drive.readonly"]

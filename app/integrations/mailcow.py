@@ -407,8 +407,10 @@ async def send_email(
         tls_context.check_hostname = True
         tls_context.verify_mode = ssl.CERT_REQUIRED
 
+        # HELO/EHLO-Hostname: konfigurierter Wert > from_domain > SMTP-Host
+        ehlo_hostname = settings.MAILCOW_SMTP_EHLO_HOSTNAME or from_domain or host
+
         if use_tls:
-            # Port 465 — implicit TLS, HELO mit korrekter Domain wie Rainloop
             smtp = aiosmtplib.SMTP(
                 hostname=host,
                 port=port,
@@ -416,6 +418,7 @@ async def send_email(
                 tls_context=tls_context,
             )
             await smtp.connect()
+            await smtp.ehlo(ehlo_hostname)
             await smtp.login(username, password)
             await smtp.send_message(msg)
             await smtp.quit()
@@ -426,7 +429,9 @@ async def send_email(
                 use_tls=False,
             )
             await smtp.connect()
+            await smtp.ehlo(ehlo_hostname)
             await smtp.starttls(tls_context=tls_context)
+            await smtp.ehlo(ehlo_hostname)
             await smtp.login(username, password)
             await smtp.send_message(msg)
             await smtp.quit()
