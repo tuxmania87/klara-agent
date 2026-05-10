@@ -357,15 +357,21 @@ class ToolExecutor:
         return {"query": query, "count": len(simplified), "events": simplified}
 
 
-    async def _get_recent_emails(self, limit: int = 10, source: str | None = None) -> dict:
+    async def _get_recent_emails(self, limit: int = 10, source: str | None = None,
+                                  sender: str | None = None, subject: str | None = None) -> dict:
         """Query already-stored emails from DB — fast, no IMAP/Gmail call needed."""
         from sqlalchemy import select
         from app.models.email import Email
         limit = int(limit)
 
-        stmt = select(Email).order_by(Email.received_at.desc()).limit(limit)
+        stmt = select(Email).order_by(Email.received_at.desc())
         if source:
             stmt = stmt.where(Email.source == source)
+        if sender:
+            stmt = stmt.where(Email.sender.ilike(f"%{sender}%"))
+        if subject:
+            stmt = stmt.where(Email.subject.ilike(f"%{subject}%"))
+        stmt = stmt.limit(limit)
 
         result = await self.db.execute(stmt)
         emails = list(result.scalars().all())

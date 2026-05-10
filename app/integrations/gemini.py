@@ -35,10 +35,12 @@ TOOL_DECLARATIONS = [
     ),
     FunctionDeclaration(
         name="get_recent_emails",
-        description="Query already-fetched emails from the local database. Use this when the user asks what emails came in or to review recent emails — much faster than re-fetching from Gmail/Mailcow. Use read_gmail_messages or read_mailcow_messages only to actively fetch new ones.",
+        description="Sucht in der lokalen Mail-Datenbank. Nutze dieses Tool wenn der User nach Mails fragt — nach Absender, Betreff, Zeitraum oder einfach die letzten N. Schneller als IMAP/Gmail neu abzufragen.",
         parameters={"type": "object", "properties": {
-            "limit":  {"type": "integer", "description": "Number of recent emails, default 10."},
-            "source": {"type": "string",  "description": "Optional filter: gmail or mailcow."},
+            "limit":   {"type": "integer", "description": "Anzahl Mails, default 10."},
+            "source":  {"type": "string",  "description": "Optional: gmail oder mailcow."},
+            "sender":  {"type": "string",  "description": "Optional: Absender-Filter, z.B. 'amazon' oder 'verena@'. Sucht per ILIKE."},
+            "subject": {"type": "string",  "description": "Optional: Betreff-Filter, z.B. 'Turnier' oder 'Rechnung'."},
         }},
     ),
     FunctionDeclaration(
