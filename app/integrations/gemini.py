@@ -43,6 +43,8 @@ TOOL_DECLARATIONS = [
             "limit":        {"type": "integer", "description": "Max. Anzahl Ergebnisse, default 10."},
         }},
     ),
+    FunctionDeclaration(
+        name="get_recent_emails",
         description="Sucht in der lokalen Mail-Datenbank. Nutze dieses Tool wenn der User nach Mails fragt — nach Absender, Betreff, Zeitraum oder einfach die letzten N. Schneller als IMAP/Gmail neu abzufragen.",
         parameters={"type": "object", "properties": {
             "limit":   {"type": "integer", "description": "Anzahl Mails, default 10."},
