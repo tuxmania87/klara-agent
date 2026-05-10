@@ -50,11 +50,10 @@ async def test_variant(name: str, from_header: str, port: int, use_tls: bool, en
     try:
         if use_tls:
             smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=port, use_tls=True,
-                                   tls_context=tls_context, source_address=from_domain)
+                                   tls_context=tls_context)
             await smtp.connect()
         else:
-            smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=port, use_tls=False,
-                                   source_address=from_domain)
+            smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=port, use_tls=False)
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
 

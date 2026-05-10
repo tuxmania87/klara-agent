@@ -411,7 +411,6 @@ async def send_email(
                 port=port,
                 use_tls=True,
                 tls_context=tls_context,
-                source_address=from_domain,
             )
             await smtp.connect()
             await smtp.login(username, password)
@@ -422,7 +421,6 @@ async def send_email(
                 hostname=host,
                 port=port,
                 use_tls=False,
-                source_address=from_domain,
             )
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
