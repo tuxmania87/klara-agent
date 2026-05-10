@@ -74,6 +74,9 @@ class Agent:
                 "Kein weiteres Tool nötig."
             )
 
+        if not response_text:
+            response_text = "Ich habe die Anfrage verarbeitet, aber keine Antwort formuliert. Bitte frag nochmal."
+
         # Persist assistant reply
         await self.message_service.add(
             user_id=user.id,
