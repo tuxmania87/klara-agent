@@ -54,16 +54,14 @@ async def test_variant(name: str, from_header: str, port: int, use_tls: bool, en
 
 async def main():
     variants = [
-        # Port 587 STARTTLS (wie Rainloop) — Alias ohne expliziten Envelope
-        ("587 STARTTLS, Alias From, kein Envelope",      "mail@klarahartmann.de",                587, False, None),
-        # Port 587 STARTTLS — Alias mit explizitem Envelope
-        ("587 STARTTLS, Alias From, Alias Envelope",     "mail@klarahartmann.de",                587, False, "mail@klarahartmann.de"),
-        # Port 587 STARTTLS — Display Name
-        ("587 STARTTLS, Display Name",                   "Klara Hartmann <mail@klarahartmann.de>", 587, False, "mail@klarahartmann.de"),
-        # Port 465 implicit TLS — Alias (bisheriger Code)
-        ("465 TLS, Alias From, kein Envelope",           "mail@klarahartmann.de",                465, True,  None),
-        # Baseline Port 465 — konfigurierter Account
-        ("465 TLS, Baseline klarabelle",                 "mail@klarabelle.de",                   465, True,  None),
+        # Port 587 implicit TLS (Mailcow-Variante)
+        ("587 implicit TLS, Alias From",             "mail@klarahartmann.de",                  587, True,  None),
+        ("587 implicit TLS, Alias Envelope",         "mail@klarahartmann.de",                  587, True,  "mail@klarahartmann.de"),
+        ("587 implicit TLS, Baseline",               "mail@klarabelle.de",                     587, True,  None),
+        # Port 465 implicit TLS
+        ("465 TLS, Alias From",                      "mail@klarahartmann.de",                  465, True,  None),
+        ("465 TLS, Alias Envelope",                  "mail@klarahartmann.de",                  465, True,  "mail@klarahartmann.de"),
+        ("465 TLS, Baseline",                        "mail@klarabelle.de",                     465, True,  None),
     ]
 
     for name, from_header, port, use_tls, envelope in variants:
