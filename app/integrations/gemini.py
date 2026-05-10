@@ -64,7 +64,7 @@ TOOL_DECLARATIONS = [
                 "body_text": {"type": "string", "description": "Plain-text body."},
                 "body_html": {"type": "string", "description": "Optional HTML body."},
                 "cc":        {"type": "array", "items": {"type": "string"}, "description": "Optional CC."},
-                "from_addr": {"type": "string", "description": "Optional sender override e.g. Klara <klara@domain.de>."},
+                "from_addr": {"type": "string", "description": "Absenderadresse. MUSS gesetzt werden wenn der User eine bestimmte Absenderadresse nennt, z.B. 'mail@klarahartmann.de' oder 'Klara Hartmann <mail@klarahartmann.de>'. Nie weglassen wenn explizit genannt."},
             },
             "required": ["to", "subject", "body_text"],
         },
