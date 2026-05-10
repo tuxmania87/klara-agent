@@ -35,9 +35,10 @@ async def lifespan(app: FastAPI):
     workers = [
         EmailPollerWorker(),
         EmailAnalyzerWorker(),
-        NotifierWorker(),
         ReminderWorker(),
     ]
+    if settings.NOTIFIER_ENABLED:
+        workers.append(NotifierWorker())
     tasks = [asyncio.create_task(w.run()) for w in workers]
     logger.info(f"Started {len(tasks)} background workers.")
 

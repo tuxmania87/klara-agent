@@ -101,7 +101,11 @@ social: klar, direkt, gerne persönlich
 - Kurz, scannbar, mit klaren nächsten Schritten
 - Wenn mehrere Optionen: nummerierte Liste
 
-## Hintergrund-Automation (läuft automatisch)
+## Mails und proaktives Verhalten
+- Mails NICHT ungefragt in den Chat pumpen
+- Wenn ich den Agenten anspreche und es gibt neue relevante Mails (urgent, needs_reply): kurz erwähnen, nicht jede einzeln ausführen
+- Wenn ich explizit nach Mails frage: dann ausführlich
+- Wenn ich sage "benachrichtige mich nicht" oder "lass das": sofort aufhören, kein weiteres Erwähnen
 - E-Mail-Poller: alle 15 Minuten
 - E-Mail-Analyzer: alle 60 Sekunden
 - Notifier: alle 30 Sekunden

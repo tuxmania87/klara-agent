@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     EMAIL_POLL_INTERVAL_SECONDS: int = 900    # 15 min
     ANALYSIS_POLL_INTERVAL_SECONDS: int = 60
     NOTIFICATION_POLL_INTERVAL_SECONDS: int = 30
+    # Automatische Push-Benachrichtigungen per Telegram bei neuen Mails.
+    # Standard: aus — der Agent weist beim nächsten Gespräch auf relevante Mails hin.
+    NOTIFIER_ENABLED: bool = False
     GMAIL_MAX_RESULTS: int = 20
 
     # ── Google Search (SerpAPI) ──────────────────────────────────────────────
