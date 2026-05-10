@@ -373,6 +373,9 @@ async def send_email(
     )
 
     # Build MIME message
+    import uuid
+    from email.utils import make_msgid
+
     if body_html:
         msg = MIMEMultipart("alternative")
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
@@ -380,15 +383,18 @@ async def send_email(
     else:
         msg = MIMEText(body_text, "plain", "utf-8")
 
-    msg["Subject"] = subject
-    msg["From"]    = display_from
-    msg["To"]      = ", ".join(to)
+    # Absender-Domain für Message-ID und HELO
+    from_domain = display_from.split("@")[-1].rstrip(">") if "@" in display_from else host
+
+    msg["Subject"]    = subject
+    msg["From"]       = display_from
+    msg["To"]         = ", ".join(to)
+    msg["Message-ID"] = make_msgid(domain=from_domain)
     if cc:
         msg["Cc"] = ", ".join(cc)
     if reply_to:
         msg["Reply-To"] = reply_to
     elif display_from != envelope_sender:
-        # Antworten sollen an die Alias-Adresse gehen, nicht an den technischen Account
         msg["Reply-To"] = display_from
 
     all_recipients = to + (cc or [])
@@ -399,28 +405,29 @@ async def send_email(
         tls_context.verify_mode = ssl.CERT_REQUIRED
 
         if use_tls:
-            # Port 465 — implicit TLS
+            # Port 465 — implicit TLS, HELO mit korrekter Domain wie Rainloop
             smtp = aiosmtplib.SMTP(
                 hostname=host,
                 port=port,
                 use_tls=True,
                 tls_context=tls_context,
+                source_address=from_domain,
             )
             await smtp.connect()
             await smtp.login(username, password)
-            await smtp.send_message(msg)
+            await smtp.send_message(msg, sender=display_from)
             await smtp.quit()
         else:
-            # Port 587 — STARTTLS
             smtp = aiosmtplib.SMTP(
                 hostname=host,
                 port=port,
                 use_tls=False,
+                source_address=from_domain,
             )
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
             await smtp.login(username, password)
-            await smtp.send_message(msg)
+            await smtp.send_message(msg, sender=display_from)
             await smtp.quit()
 
         logger.info(

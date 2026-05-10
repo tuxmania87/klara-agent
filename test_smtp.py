@@ -23,19 +23,25 @@ async def test_variant(name: str, from_header: str, port: int, use_tls: bool, en
     print(f"  From-Header:      {from_header}")
     print(f"  Envelope-Sender:  {envelope_sender or '(aus From-Header)'}")
 
+    from email.utils import make_msgid
+    from_domain = from_header.split("@")[-1].rstrip(">") if "@" in from_header else SMTP_HOST
+
     msg = MIMEText(f"Test: {name}", "plain", "utf-8")
-    msg["Subject"] = f"{SUBJECT} — {name}"
-    msg["From"]    = from_header
-    msg["To"]      = TO
+    msg["Subject"]    = f"{SUBJECT} — {name}"
+    msg["From"]       = from_header
+    msg["To"]         = TO
+    msg["Message-ID"] = make_msgid(domain=from_domain)
 
     tls_context = ssl.create_default_context()
 
     try:
         if use_tls:
-            smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=port, use_tls=True, tls_context=tls_context)
+            smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=port, use_tls=True,
+                                   tls_context=tls_context, source_address=from_domain)
             await smtp.connect()
         else:
-            smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=port, use_tls=False)
+            smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=port, use_tls=False,
+                                   source_address=from_domain)
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
 
@@ -44,7 +50,7 @@ async def test_variant(name: str, from_header: str, port: int, use_tls: bool, en
         if envelope_sender:
             await smtp.send_message(msg, sender=envelope_sender)
         else:
-            await smtp.send_message(msg)
+            await smtp.send_message(msg, sender=from_header)
 
         await smtp.quit()
         print(f"  ✅ ERFOLG")
