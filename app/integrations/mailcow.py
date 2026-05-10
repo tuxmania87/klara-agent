@@ -354,15 +354,11 @@ async def send_email(
     use_tls   = settings.MAILCOW_SMTP_TLS
     from_addr = from_addr or username
 
-    # Warnung wenn from_addr eine andere Adresse als der konfigurierte Account ist —
-    # Mailcow/SMTP-Server erlauben das nur wenn die Adresse auf dem Server existiert.
-    # Der From-Header wird gesetzt, aber der SMTP-Envelope-Sender bleibt username.
-    if from_addr and username.lower() not in from_addr.lower():
-        logger.warning(
-            "mailcow.smtp.from_mismatch",
-            extra={"from_addr": from_addr, "smtp_user": username,
-                   "note": "SMTP-Envelope bleibt beim konfigurierten Account"},
-        )
+    # Bei Alias-Domains: From-Header auf gewünschte Adresse setzen,
+    # Envelope-Sender bleibt beim konfigurierten Account (Mailcow-Einschränkung).
+    # Reply-To sicherstellen dass Antworten an die richtige Adresse gehen.
+    envelope_sender = username  # SMTP MAIL FROM — immer der konfigurierte Account
+    display_from = from_addr or username  # From-Header — kann Alias sein
 
     logger.info(
         "mailcow.smtp.send_attempt",
@@ -385,12 +381,15 @@ async def send_email(
         msg = MIMEText(body_text, "plain", "utf-8")
 
     msg["Subject"] = subject
-    msg["From"]    = from_addr
+    msg["From"]    = display_from
     msg["To"]      = ", ".join(to)
     if cc:
         msg["Cc"] = ", ".join(cc)
     if reply_to:
         msg["Reply-To"] = reply_to
+    elif display_from != envelope_sender:
+        # Antworten sollen an die Alias-Adresse gehen, nicht an den technischen Account
+        msg["Reply-To"] = display_from
 
     all_recipients = to + (cc or [])
 
@@ -409,7 +408,7 @@ async def send_email(
             )
             await smtp.connect()
             await smtp.login(username, password)
-            await smtp.send_message(msg, sender=from_addr)
+            await smtp.send_message(msg, sender=envelope_sender)
             await smtp.quit()
         else:
             # Port 587 — STARTTLS
@@ -421,7 +420,7 @@ async def send_email(
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
             await smtp.login(username, password)
-            await smtp.send_message(msg, sender=from_addr)
+            await smtp.send_message(msg, sender=envelope_sender)
             await smtp.quit()
 
         logger.info(
