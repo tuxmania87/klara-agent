@@ -420,7 +420,7 @@ async def send_email(
             )
             await smtp.connect()
             await smtp.login(username, password)
-            await smtp.send_message(msg)
+            await smtp.send_message(msg, sender=display_from)
             await smtp.quit()
         else:
             smtp = aiosmtplib.SMTP(
@@ -432,7 +432,7 @@ async def send_email(
             await smtp.connect()
             await smtp.starttls(tls_context=tls_context)
             await smtp.login(username, password)
-            await smtp.send_message(msg)
+            await smtp.send_message(msg, sender=display_from)
             await smtp.quit()
 
         logger.info(
