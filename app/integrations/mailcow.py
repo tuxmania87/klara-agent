@@ -347,18 +347,21 @@ async def send_email(
     Send email via SMTP (aiosmtplib).
     Always called through pending_action approval — never directly.
     """
-    host      = settings.MAILCOW_SMTP_HOST
-    port      = settings.MAILCOW_SMTP_PORT
-    username  = settings.MAILCOW_EMAIL_ADDRESS
-    password  = settings.MAILCOW_SMTP_PASSWORD
-    use_tls   = settings.MAILCOW_SMTP_TLS
-    from_addr = from_addr or username
+    host    = settings.MAILCOW_SMTP_HOST
+    port    = settings.MAILCOW_SMTP_PORT
+    use_tls = settings.MAILCOW_SMTP_TLS
 
-    # Bei Alias-Domains: From-Header auf gewünschte Adresse setzen,
-    # Envelope-Sender bleibt beim konfigurierten Account (Mailcow-Einschränkung).
-    # Reply-To sicherstellen dass Antworten an die richtige Adresse gehen.
-    envelope_sender = username  # SMTP MAIL FROM — immer der konfigurierte Account
-    display_from = from_addr or username  # From-Header — kann Alias sein
+    # Zweiten SMTP-Account wählen wenn from_addr zu account_2 passt
+    addr2 = settings.MAILCOW_EMAIL_ADDRESS_2
+    if addr2 and from_addr and addr2.lower() in from_addr.lower():
+        username = addr2
+        password = settings.MAILCOW_SMTP_PASSWORD_2
+    else:
+        username = settings.MAILCOW_EMAIL_ADDRESS
+        password = settings.MAILCOW_SMTP_PASSWORD
+
+    display_from    = from_addr or username
+    envelope_sender = username
 
     logger.info(
         "mailcow.smtp.send_attempt",

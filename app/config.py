@@ -40,7 +40,9 @@ class Settings(BaseSettings):
     ]
     GCAL_TIMEZONE: str = "Europe/Berlin"
 
-    # ── Google Drive (Finanzdaten) ────────────────────────────────────────────
+    # ── Zweiter SMTP-Account (z.B. für Alias-Domain mit eigener Mailbox) ─────────
+    MAILCOW_EMAIL_ADDRESS_2: str = ""
+    MAILCOW_SMTP_PASSWORD_2: str = ""
     GDRIVE_CREDENTIALS_JSON: str = "/secrets/gdrive_credentials.json"
     GDRIVE_TOKEN_JSON: str = "/secrets/gdrive_token.json"
     GDRIVE_SCOPES: list[str] = ["https://www.googleapis.com/auth/drive.readonly"]
