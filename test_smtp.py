@@ -1,19 +1,32 @@
 """
 Minimaler SMTP-Test für Mailcow Alias-Domain Absender.
 Direkt ausführen: python3 test_smtp.py
+Liest Credentials aus .env
 """
 import asyncio
 import ssl
 import aiosmtplib
 from email.mime.text import MIMEText
+from dotenv import load_dotenv
+import os
 
-# ── Konfiguration ─────────────────────────────────────────────────────────────
-SMTP_HOST     = "mx.klarabelle.de"
-SMTP_USER     = "mail@klarabelle.de"
-SMTP_PASSWORD = "DEIN_PASSWORT_HIER"
+load_dotenv()
+
+# ── Konfiguration aus .env ────────────────────────────────────────────────────
+SMTP_HOST     = os.getenv("MAILCOW_IMAP_HOST", "mx.klarabelle.de")
+SMTP_USER     = os.getenv("MAILCOW_EMAIL_ADDRESS", "mail@klarabelle.de")
+SMTP_PASSWORD = os.getenv("MAILCOW_SMTP_PASSWORD", "")
 
 TO            = "klara@keinerspieltmitmir.de"
 SUBJECT       = "SMTP Alias Test"
+
+if not SMTP_PASSWORD:
+    print("❌ MAILCOW_SMTP_PASSWORD nicht in .env gesetzt!")
+    exit(1)
+
+print(f"SMTP Host: {SMTP_HOST}")
+print(f"SMTP User: {SMTP_USER}")
+print(f"Sende an:  {TO}")
 
 
 async def test_variant(name: str, from_header: str, port: int, use_tls: bool, envelope_sender: str | None = None):
