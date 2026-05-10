@@ -366,12 +366,13 @@ async def send_email(
     logger.info(
         "mailcow.smtp.send_attempt",
         extra={
-            "host":     host,
-            "port":     port,
-            "username": username,
-            "use_tls":  use_tls,
-            "to":       to,
-            "subject":  subject,
+            "host":         host,
+            "port":         port,
+            "username":     username,
+            "use_tls":      use_tls,
+            "to":           to,
+            "subject":      subject,
+            "display_from": display_from,
         },
     )
 
