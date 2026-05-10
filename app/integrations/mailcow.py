@@ -416,9 +416,9 @@ async def send_email(
                 port=port,
                 use_tls=True,
                 tls_context=tls_context,
+                client_hostname=ehlo_hostname,
             )
             await smtp.connect()
-            await smtp.ehlo(ehlo_hostname)
             await smtp.login(username, password)
             await smtp.send_message(msg)
             await smtp.quit()
@@ -427,11 +427,10 @@ async def send_email(
                 hostname=host,
                 port=port,
                 use_tls=False,
+                client_hostname=ehlo_hostname,
             )
             await smtp.connect()
-            await smtp.ehlo(ehlo_hostname)
             await smtp.starttls(tls_context=tls_context)
-            await smtp.ehlo(ehlo_hostname)
             await smtp.login(username, password)
             await smtp.send_message(msg)
             await smtp.quit()
