@@ -64,8 +64,15 @@ class Agent:
                 )
                 response_text, tool_calls = gemini_agent.send_tool_result(chat, tc["name"], result)
 
-        if not response_text:
-            response_text = "✅ Done! I've processed your request."
+        # Gemini gibt manchmal leeren Text zurück wenn es das Tool-Ergebnis
+        # verarbeitet hat aber vergessen hat eine Antwort zu formulieren.
+        # Dann explizit nachfragen.
+        if not response_text and not tool_calls:
+            response_text, _ = gemini_agent.send_message(
+                chat,
+                "Bitte formuliere jetzt eine klare Antwort auf Basis des Tool-Ergebnisses. "
+                "Kein weiteres Tool nötig."
+            )
 
         # Persist assistant reply
         await self.message_service.add(
