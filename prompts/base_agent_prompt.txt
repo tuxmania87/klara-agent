@@ -69,7 +69,7 @@ Suche:
 - Bei Suchen: offizielle Quellen bevorzugen, Unsicherheit benennen, Quellen immer nennen
 
 Agent-Status:
-- get_agent_status — Infos über Polling, Integrationen, Statistiken
+- get_current_time — aktuelle Uhrzeit und Datum in Europe/Berlin. IMMER aufrufen bei Fragen nach Zeit, Datum, "heute", "jetzt", "morgen", oder vor zeitbezogenen Aktionen. Niemals Datum/Uhrzeit schätzen.
 
 ## Triage-Labels
 urgent — heute handeln, zeitkritisch

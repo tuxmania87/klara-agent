@@ -146,6 +146,11 @@ TOOL_DECLARATIONS = [
         }, "required": ["email_ids"]},
     ),
     FunctionDeclaration(
+        name="get_current_time",
+        description="Gibt die aktuelle Uhrzeit und das aktuelle Datum in der konfigurierten Zeitzone zurück. IMMER aufrufen wenn der User nach Datum, Uhrzeit, 'heute', 'jetzt', 'morgen' fragt oder wenn zeitbezogene Aktionen geplant werden.",
+        parameters={"type": "object", "properties": {}},
+    ),
+    FunctionDeclaration(
         name="get_agent_status",
         description="Get current agent status: polling schedule, active integrations, email/action counts.",
         parameters={"type": "object", "properties": {}},

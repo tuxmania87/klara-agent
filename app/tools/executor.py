@@ -55,6 +55,7 @@ class ToolExecutor:
             "list_google_calendar_events": self._list_calendar_events,
             "summarize_email": self._summarize_email,
             "classify_email_actionability": self._classify_emails,
+            "get_current_time":  self._get_current_time,
             "get_agent_status": self._get_agent_status,
             "get_recent_emails": self._get_recent_emails,
             "search_mailcow_messages": self._search_mailcow_messages,
@@ -887,3 +888,18 @@ class ToolExecutor:
     async def _finance_list_imported(self) -> dict:
         files = await self.finance_service.list_imported_files()
         return {"count": len(files), "files": files}
+
+    async def _get_current_time(self) -> dict:
+        from datetime import datetime
+        import pytz
+        tz = pytz.timezone(settings.GCAL_TIMEZONE)
+        now = datetime.now(tz)
+        return {
+            "datetime_local": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "date":           now.strftime("%Y-%m-%d"),
+            "time":           now.strftime("%H:%M"),
+            "weekday":        now.strftime("%A"),
+            "weekday_de":     ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"][now.weekday()],
+            "timezone":       settings.GCAL_TIMEZONE,
+            "iso":            now.isoformat(),
+        }
