@@ -161,11 +161,22 @@ TOOL_DECLARATIONS = [
         parameters={
             "type": "object",
             "properties": {
-                "content": {"type": "string", "description": "Inhalt der Notiz."},
-                "title":   {"type": "string", "description": "Optionaler Titel."},
-                "tags":    {"type": "string", "description": "Optionale Tags, komma-separiert z.B. 'arbeit,idee'."},
+                "content":  {"type": "string", "description": "Inhalt der Notiz."},
+                "title":    {"type": "string", "description": "Optionaler Titel."},
+                "tags":     {"type": "string", "description": "Optionale Tags, komma-separiert z.B. 'arbeit,idee'."},
+                "category": {"type": "string", "description": "Kategorie: task|idea|shopping|kids|case|tech|routine|template|tagebuch"},
             },
             "required": ["content"],
+        },
+    ),
+    FunctionDeclaration(
+        name="list_diary",
+        description="Zeigt Tagebucheinträge aus vergangenen Check-ins. Nutzen wenn der User fragt 'wie war meine Woche', 'was hab ich letzte Woche erzählt', 'zeig mein Tagebuch'.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Anzahl Einträge, default 7."},
+            },
         },
     ),
     FunctionDeclaration(

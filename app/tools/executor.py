@@ -63,6 +63,7 @@ class ToolExecutor:
             "delete_google_calendar_event": self._queue_delete_calendar_event,
             "find_google_calendar_events":  self._find_calendar_events,
             "save_note":    self._save_note,
+            "list_diary":   self._list_diary,
             "list_notes":   self._list_notes,
             "search_notes": self._search_notes,
             "delete_note":  self._delete_note,
@@ -479,9 +480,9 @@ class ToolExecutor:
 
     # ── Notizen ───────────────────────────────────────────────────────────────
 
-    async def _save_note(self, content: str, title: str | None = None, tags: str | None = None) -> dict:
+    async def _save_note(self, content: str, title: str | None = None, tags: str | None = None, category: str | None = None) -> dict:
         note = await self.note_service.create(
-            user_id=self.user_id, content=content, title=title, tags=tags
+            user_id=self.user_id, content=content, title=title, tags=tags, category=category
         )
         return {
             "status": "saved",
@@ -902,4 +903,30 @@ class ToolExecutor:
             "weekday_de":     ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"][now.weekday()],
             "timezone":       settings.GCAL_TIMEZONE,
             "iso":            now.isoformat(),
+        }
+
+    async def _list_diary(self, limit: int = 7) -> dict:
+        """Tagebucheinträge aus Check-ins."""
+        from sqlalchemy import select
+        from app.models.note import Note
+        result = await self.db.execute(
+            select(Note)
+            .where(Note.user_id == self.user_id)
+            .where(Note.category == "tagebuch")
+            .order_by(Note.created_at.desc())
+            .limit(int(limit))
+        )
+        notes = list(result.scalars().all())
+        return {
+            "count": len(notes),
+            "entries": [
+                {
+                    "id":         n.id,
+                    "title":      n.title,
+                    "content":    n.content,
+                    "tags":       n.tags,
+                    "created_at": str(n.created_at),
+                }
+                for n in notes
+            ],
         }
