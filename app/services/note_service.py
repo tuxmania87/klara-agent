@@ -13,8 +13,8 @@ class NoteService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, user_id: int, content: str, title: str | None = None, tags: str | None = None) -> Note:
-        note = Note(user_id=user_id, content=content, title=title, tags=tags)
+    async def create(self, user_id: int, content: str, title: str | None = None, tags: str | None = None, category: str | None = None) -> Note:
+        note = Note(user_id=user_id, content=content, title=title, tags=tags, category=category)
         self.db.add(note)
         await self.db.commit()
         await self.db.refresh(note)
