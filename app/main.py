@@ -17,6 +17,7 @@ from app.workers.email_poller import EmailPollerWorker
 from app.workers.email_analyzer import EmailAnalyzerWorker
 from app.workers.notifier import NotifierWorker
 from app.workers.reminder_worker import ReminderWorker
+from app.workers.evening_checkin import EveningCheckinWorker
 from app.database import init_db
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
         EmailPollerWorker(),
         EmailAnalyzerWorker(),
         ReminderWorker(),
+        EveningCheckinWorker(),
     ]
     if settings.NOTIFIER_ENABLED:
         workers.append(NotifierWorker())
